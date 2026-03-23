@@ -6,7 +6,7 @@ export async function runAgentsImportCommand(
   projectRoot: string,
   sourceDirectory: string,
   json: boolean,
-  ui: Ui
+  ui: Ui,
 ): Promise<void> {
   const config = await loadRequiredConfig(projectRoot);
   const imported = await importAgentsFromDirectory(projectRoot, config, sourceDirectory);

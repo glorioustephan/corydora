@@ -36,7 +36,10 @@ export function resolveConfigPath(projectRoot: string, configPath?: string): str
   return configPath ? resolve(projectRoot, configPath) : resolve(projectRoot, CONFIG_FILE_NAME);
 }
 
-export async function loadConfig(projectRoot: string, configPath?: string): Promise<CorydoraConfig> {
+export async function loadConfig(
+  projectRoot: string,
+  configPath?: string,
+): Promise<CorydoraConfig> {
   const resolvedPath = resolveConfigPath(projectRoot, configPath);
   const raw = await readFile(resolvedPath, 'utf8');
   return parseCorydoraConfig(JSON.parse(raw));
@@ -51,7 +54,7 @@ export async function saveConfig(projectRoot: string, config: CorydoraConfig): P
 
 export async function ensureCorydoraStructure(
   projectRoot: string,
-  config: CorydoraConfig
+  config: CorydoraConfig,
 ): Promise<void> {
   const directories = [
     config.paths.corydoraDir,
@@ -83,6 +86,10 @@ export async function ensureCorydoraStructure(
   }
 }
 
-export function resolveStatePath(projectRoot: string, config: CorydoraConfig, fileName: string): string {
+export function resolveStatePath(
+  projectRoot: string,
+  config: CorydoraConfig,
+  fileName: string,
+): string {
   return join(projectRoot, config.paths.stateDir, fileName);
 }

@@ -1,8 +1,4 @@
-import type {
-  BUILTIN_TASK_CATEGORIES,
-  RUNTIME_PROVIDER_IDS,
-  TECH_LENSES,
-} from '../constants.js';
+import type { BUILTIN_TASK_CATEGORIES, RUNTIME_PROVIDER_IDS, TECH_LENSES } from '../constants.js';
 
 export type TaskCategory = (typeof BUILTIN_TASK_CATEGORIES)[number];
 export type TechLens = (typeof TECH_LENSES)[number];

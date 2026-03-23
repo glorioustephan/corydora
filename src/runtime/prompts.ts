@@ -33,7 +33,7 @@ export function scanJsonSchemaExample(): string {
       needsHumanReview: false,
     },
     null,
-    2
+    2,
   );
 }
 
@@ -57,7 +57,7 @@ export function fixJsonSchemaExample(adapter: RuntimeAdapter): string {
         ],
       },
       null,
-      2
+      2,
     );
   }
 
@@ -77,7 +77,7 @@ export function buildScanPrompt(input: {
     '',
     `Project frameworks: ${input.fingerprint.frameworks.join(', ') || 'unknown'}`,
     `Project tech lenses: ${input.fingerprint.techLenses.join(', ') || 'refactoring'}`,
-    `Active agents: ${input.agents.map(agent => `${agent.id} (${agent.description})`).join('; ')}`,
+    `Active agents: ${input.agents.map((agent) => `${agent.id} (${agent.description})`).join('; ')}`,
     '',
     fencedFileBlock(input.filePath, input.fileContent),
     '',

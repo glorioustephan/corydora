@@ -22,7 +22,10 @@ export function initializeGitRepository(directory: string): void {
     cwd: directory,
     stdio: 'ignore',
   });
-  execFileSync('git', ['config', 'user.name', 'Corydora Test'], { cwd: directory, stdio: 'ignore' });
+  execFileSync('git', ['config', 'user.name', 'Corydora Test'], {
+    cwd: directory,
+    stdio: 'ignore',
+  });
   execFileSync('git', ['add', '.'], { cwd: directory, stdio: 'ignore' });
   execFileSync('git', ['commit', '-m', 'fixture'], { cwd: directory, stdio: 'ignore' });
 }
@@ -30,17 +33,22 @@ export function initializeGitRepository(directory: string): void {
 export function runCli(args: string[], cwd: string): string {
   return execFileSync(
     process.execPath,
-    ['--import', resolve(projectRoot, 'node_modules', 'tsx', 'dist', 'loader.mjs'), corydoraCliPath(), ...args],
+    [
+      '--import',
+      resolve(projectRoot, 'node_modules', 'tsx', 'dist', 'loader.mjs'),
+      corydoraCliPath(),
+      ...args,
+    ],
     {
       cwd,
       encoding: 'utf8',
-    }
+    },
   );
 }
 
 export async function patchConfig(
   directory: string,
-  transform: (config: Record<string, unknown>) => Record<string, unknown>
+  transform: (config: Record<string, unknown>) => Record<string, unknown>,
 ): Promise<void> {
   const configPath = resolve(directory, '.corydora.json');
   const raw = await readFile(configPath, 'utf8');

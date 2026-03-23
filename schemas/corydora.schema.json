@@ -4,16 +4,7 @@
   "title": "CorydoraConfig",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "version",
-    "git",
-    "runtime",
-    "agents",
-    "scan",
-    "execution",
-    "todo",
-    "paths"
-  ],
+  "required": ["version", "git", "runtime", "agents", "scan", "execution", "todo", "paths"],
   "properties": {
     "version": {
       "type": "integer",
@@ -22,19 +13,11 @@
     "git": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "isolationMode",
-        "branchPrefix",
-        "trackMarkdownQueues"
-      ],
+      "required": ["isolationMode", "branchPrefix", "trackMarkdownQueues"],
       "properties": {
         "isolationMode": {
           "type": "string",
-          "enum": [
-            "worktree",
-            "branch",
-            "current-branch"
-          ]
+          "enum": ["worktree", "branch", "current-branch"]
         },
         "branchPrefix": {
           "type": "string"
@@ -50,10 +33,7 @@
     "runtime": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "provider",
-        "model"
-      ],
+      "required": ["provider", "model"],
       "properties": {
         "provider": {
           "type": "string"
@@ -69,22 +49,13 @@
     "agents": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "enabledCategories",
-        "selectedBuiltinAgents"
-      ],
+      "required": ["enabledCategories", "selectedBuiltinAgents"],
       "properties": {
         "enabledCategories": {
           "type": "array",
           "items": {
             "type": "string",
-            "enum": [
-              "bugs",
-              "performance",
-              "tests",
-              "todo",
-              "features"
-            ]
+            "enum": ["bugs", "performance", "tests", "todo", "features"]
           }
         },
         "selectedBuiltinAgents": {
@@ -168,10 +139,7 @@
     "todo": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "trackMarkdownFiles",
-        "renderCompletedTasks"
-      ],
+      "required": ["trackMarkdownFiles", "renderCompletedTasks"],
       "properties": {
         "trackMarkdownFiles": {
           "type": "boolean"
@@ -184,14 +152,7 @@
     "paths": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "corydoraDir",
-        "stateDir",
-        "logsDir",
-        "runsDir",
-        "agentsDir",
-        "envFile"
-      ],
+      "required": ["corydoraDir", "stateDir", "logsDir", "runsDir", "agentsDir", "envFile"],
       "properties": {
         "corydoraDir": {
           "type": "string"

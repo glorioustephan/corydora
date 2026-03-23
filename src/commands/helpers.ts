@@ -15,10 +15,12 @@ export function configExists(projectRoot: string): boolean {
 
 export async function loadRequiredConfig(
   projectRoot: string,
-  configPath?: string
+  configPath?: string,
 ): Promise<CorydoraConfig> {
   if (!configExists(projectRoot) && !configPath) {
-    throw new Error(`No ${CONFIG_FILE_NAME} file found in ${projectRoot}. Run "corydora init" first.`);
+    throw new Error(
+      `No ${CONFIG_FILE_NAME} file found in ${projectRoot}. Run "corydora init" first.`,
+    );
   }
 
   return loadConfig(projectRoot, configPath);

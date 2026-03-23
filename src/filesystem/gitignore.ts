@@ -19,15 +19,15 @@ const MARKDOWN_IGNORE_ENTRIES = [
 
 export async function ensureGitignoreEntries(
   projectRoot: string,
-  trackMarkdownQueues: boolean
+  trackMarkdownQueues: boolean,
 ): Promise<void> {
   const gitignorePath = resolve(projectRoot, '.gitignore');
   const existing = existsSync(gitignorePath) ? await readFile(gitignorePath, 'utf8') : '';
   const lines = new Set(
     existing
       .split('\n')
-      .map(line => line.trim())
-      .filter(Boolean)
+      .map((line) => line.trim())
+      .filter(Boolean),
   );
 
   for (const entry of CORYDORA_IGNORE_ENTRIES) {
@@ -40,6 +40,8 @@ export async function ensureGitignoreEntries(
     }
   }
 
-  const nextContent = `${Array.from(lines).sort((left, right) => left.localeCompare(right)).join('\n')}\n`;
+  const nextContent = `${Array.from(lines)
+    .sort((left, right) => left.localeCompare(right))
+    .join('\n')}\n`;
   await writeFile(gitignorePath, nextContent, 'utf8');
 }

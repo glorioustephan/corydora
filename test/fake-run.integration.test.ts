@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanupDirectory, createTempFixture, initializeGitRepository, patchConfig, runCli } from './helpers.js';
+import {
+  cleanupDirectory,
+  createTempFixture,
+  initializeGitRepository,
+  patchConfig,
+  runCli,
+} from './helpers.js';
 
 const directories: string[] = [];
 
@@ -13,7 +19,7 @@ describe('fake runtime run', () => {
     directories.push(directory);
     initializeGitRepository(directory);
     runCli(['init', '--yes'], directory);
-    await patchConfig(directory, config => ({
+    await patchConfig(directory, (config) => ({
       ...config,
       runtime: {
         ...(config.runtime as Record<string, unknown>),

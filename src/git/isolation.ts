@@ -63,7 +63,9 @@ export function prepareIsolationContext(options: {
   }
 
   const rootDirectory = resolveWorktreeRoot(options.config);
-  const repositoryName = sanitizedSlug(options.projectRoot.split('/').filter(Boolean).at(-1) ?? 'repo');
+  const repositoryName = sanitizedSlug(
+    options.projectRoot.split('/').filter(Boolean).at(-1) ?? 'repo',
+  );
   const worktreePath = join(rootDirectory, `${repositoryName}-${options.runId}`);
   if (existsSync(worktreePath)) {
     execFileSync('git', ['worktree', 'remove', '--force', worktreePath], {

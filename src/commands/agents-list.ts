@@ -6,7 +6,7 @@ import type { Ui } from '../ui/output.js';
 export async function runAgentsListCommand(
   projectRoot: string,
   json: boolean,
-  ui: Ui
+  ui: Ui,
 ): Promise<void> {
   try {
     const config = await loadRequiredConfig(projectRoot);

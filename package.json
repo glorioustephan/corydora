@@ -36,15 +36,28 @@
   "scripts": {
     "build": "pnpm clean && tsc -p tsconfig.json",
     "clean": "node -e \"const fs=require('node:fs'); for (const dir of ['dist','coverage','.artifacts']) { fs.rmSync(dir,{ recursive:true, force:true }); }\"",
-    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "commit": "cz",
     "dev": "node --import tsx ./src/index.ts",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "pack:preview": "pnpm build && pnpm pack --pack-destination .artifacts",
     "prepublishOnly": "pnpm check",
     "test": "vitest --run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "config": {
+    "commitizen": {
+      "path": "cz-conventional-changelog"
+    }
   },
   "engines": {
-    "node": ">=20.18.0",
+    "node": ">=20.19.0",
     "pnpm": ">=10.32.1"
   },
   "dependencies": {
@@ -58,9 +71,18 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.5.0",
+    "commitizen": "^4.3.1",
+    "cz-conventional-changelog": "^3.3.0",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.4.0",
+    "prettier": "^3.8.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.1",
+    "vitepress": "^1.6.3",
     "vitest": "^4.1.0"
   }
 }

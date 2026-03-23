@@ -10,10 +10,10 @@ import type { RuntimeProviderId } from '../types/domain.js';
 import type { Ui } from '../ui/output.js';
 
 function selectBuiltinAgents(projectTechLenses: string[]): string[] {
-  const matching = BUILTIN_AGENTS.filter(agent =>
-    agent.techLenses.some(lens => projectTechLenses.includes(lens))
+  const matching = BUILTIN_AGENTS.filter((agent) =>
+    agent.techLenses.some((lens) => projectTechLenses.includes(lens)),
   );
-  return (matching.length > 0 ? matching : BUILTIN_AGENTS).map(agent => agent.id);
+  return (matching.length > 0 ? matching : BUILTIN_AGENTS).map((agent) => agent.id);
 }
 
 export interface InitCommandOptions {
@@ -25,11 +25,11 @@ export interface InitCommandOptions {
 export async function runInitCommand(options: InitCommandOptions, ui: Ui): Promise<void> {
   const fingerprint = detectProjectFingerprint(options.projectRoot);
   const runtimeProbes = (await probeAvailableRuntimes(options.projectRoot)).filter(
-    probe => probe.provider !== 'fake'
+    (probe) => probe.provider !== 'fake',
   );
   const recommendedRuntime =
-    runtimeProbes.find(probe => probe.recommended)?.provider ??
-    runtimeProbes.find(probe => probe.installed)?.provider ??
+    runtimeProbes.find((probe) => probe.recommended)?.provider ??
+    runtimeProbes.find((probe) => probe.installed)?.provider ??
     'claude-cli';
 
   const interactive = !options.yes && !options.json && process.stdout.isTTY;
@@ -42,13 +42,13 @@ export async function runInitCommand(options: InitCommandOptions, ui: Ui): Promi
     const loading = spinner();
     loading.start('Detecting runtimes and project shape');
     loading.stop(
-      `Detected ${runtimeProbes.length} runtimes and ${fingerprint.frameworks.length} framework(s).`
+      `Detected ${runtimeProbes.length} runtimes and ${fingerprint.frameworks.length} framework(s).`,
     );
   }
 
   let provider: RuntimeProviderId = recommendedRuntime as RuntimeProviderId;
   let model =
-    runtimeProbes.find(probe => probe.provider === provider)?.models[0] ??
+    runtimeProbes.find((probe) => probe.provider === provider)?.models[0] ??
     getDefaultConfig({
       provider,
       selectedBuiltinAgents: ['bug-investigator'],
@@ -60,7 +60,7 @@ export async function runInitCommand(options: InitCommandOptions, ui: Ui): Promi
   if (interactive) {
     const providerSelection = await select({
       message: 'Choose the default runtime',
-      options: runtimeProbes.map(probe => ({
+      options: runtimeProbes.map((probe) => ({
         value: probe.provider,
         label: `${probe.label} (${probe.auth.status})`,
         hint: probe.auth.message,

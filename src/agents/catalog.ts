@@ -11,7 +11,7 @@ function importedAgentsPath(projectRoot: string, config: CorydoraConfig): string
 
 export async function loadImportedAgents(
   projectRoot: string,
-  config: CorydoraConfig
+  config: CorydoraConfig,
 ): Promise<ImportedAgentRecord[]> {
   const filePath = importedAgentsPath(projectRoot, config);
   if (!existsSync(filePath)) {
@@ -25,7 +25,7 @@ export async function loadImportedAgents(
 
 export async function listAgents(
   projectRoot: string,
-  config: CorydoraConfig
+  config: CorydoraConfig,
 ): Promise<AgentDefinition[]> {
   const imported = await loadImportedAgents(projectRoot, config);
   return [...BUILTIN_AGENTS, ...imported];
@@ -34,7 +34,7 @@ export async function listAgents(
 export async function importAgentsFromDirectory(
   projectRoot: string,
   config: CorydoraConfig,
-  sourceDirectory: string
+  sourceDirectory: string,
 ): Promise<ImportedAgentRecord[]> {
   const entries = await readdir(sourceDirectory, { withFileTypes: true });
   const imported: ImportedAgentRecord[] = [];

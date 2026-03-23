@@ -19,7 +19,7 @@ function createDedupeKey(finding: ScanFinding): string {
         finding.file,
         finding.title.trim().toLowerCase(),
         finding.rationale.trim().toLowerCase(),
-      ].join('|')
+      ].join('|'),
     )
     .digest('hex')
     .slice(0, 16);
@@ -37,7 +37,10 @@ function runStatePath(projectRoot: string, config: CorydoraConfig): string {
   return resolve(projectRoot, config.paths.stateDir, 'run-state.json');
 }
 
-export async function loadTaskStore(projectRoot: string, config: CorydoraConfig): Promise<TaskStore> {
+export async function loadTaskStore(
+  projectRoot: string,
+  config: CorydoraConfig,
+): Promise<TaskStore> {
   const filePath = tasksPath(projectRoot, config);
   if (!existsSync(filePath)) {
     return { tasks: [] };
@@ -51,14 +54,14 @@ export async function loadTaskStore(projectRoot: string, config: CorydoraConfig)
 export async function saveTaskStore(
   projectRoot: string,
   config: CorydoraConfig,
-  store: TaskStore
+  store: TaskStore,
 ): Promise<void> {
   await writeFile(tasksPath(projectRoot, config), `${JSON.stringify(store, null, 2)}\n`, 'utf8');
 }
 
 export async function loadRunState(
   projectRoot: string,
-  config: CorydoraConfig
+  config: CorydoraConfig,
 ): Promise<RunState | null> {
   const filePath = runStatePath(projectRoot, config);
   if (!existsSync(filePath)) {
@@ -72,12 +75,15 @@ export async function loadRunState(
 export async function saveRunState(
   projectRoot: string,
   config: CorydoraConfig,
-  state: RunState
+  state: RunState,
 ): Promise<void> {
   await writeFile(runStatePath(projectRoot, config), `${JSON.stringify(state, null, 2)}\n`, 'utf8');
 }
 
-export function mergeScanFindings(store: TaskStore, findings: ScanFinding[]): {
+export function mergeScanFindings(
+  store: TaskStore,
+  findings: ScanFinding[],
+): {
   store: TaskStore;
   added: TaskRecord[];
 } {
@@ -86,7 +92,7 @@ export function mergeScanFindings(store: TaskStore, findings: ScanFinding[]): {
 
   for (const finding of findings) {
     const dedupeKey = createDedupeKey(finding);
-    const existing = nextTasks.find(task => task.dedupeKey === dedupeKey);
+    const existing = nextTasks.find((task) => task.dedupeKey === dedupeKey);
     if (existing) {
       continue;
     }
@@ -122,9 +128,9 @@ export function mergeScanFindings(store: TaskStore, findings: ScanFinding[]): {
 export function claimNextTask(
   store: TaskStore,
   runId: string,
-  allowBroadRisk: boolean
+  allowBroadRisk: boolean,
 ): TaskRecord | null {
-  const candidate = store.tasks.find(task => {
+  const candidate = store.tasks.find((task) => {
     if (task.status !== 'pending') {
       return false;
     }
@@ -150,10 +156,10 @@ export function updateTaskStatus(
   store: TaskStore,
   taskId: string,
   status: TaskStatus,
-  lastError?: string
+  lastError?: string,
 ): TaskStore {
   return {
-    tasks: store.tasks.map(task =>
+    tasks: store.tasks.map((task) =>
       task.id === taskId
         ? {
             ...task,
@@ -162,11 +168,11 @@ export function updateTaskStatus(
             ...(status === 'claimed' && task.claimRunId ? { claimRunId: task.claimRunId } : {}),
             ...(lastError ? { lastError } : {}),
           }
-        : task
+        : task,
     ),
   };
 }
 
 export function countTasksByStatus(store: TaskStore, status: TaskStatus): number {
-  return store.tasks.filter(task => task.status === status).length;
+  return store.tasks.filter((task) => task.status === status).length;
 }

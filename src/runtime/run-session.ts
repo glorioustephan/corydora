@@ -8,7 +8,16 @@ import { discoverCandidateFiles } from '../filesystem/discovery.js';
 import { detectProjectFingerprint } from '../filesystem/project.js';
 import { commitAllChanges } from '../git/repository.js';
 import { prepareIsolationContext } from '../git/isolation.js';
-import { countTasksByStatus, loadRunState, loadTaskStore, mergeScanFindings, saveRunState, saveTaskStore, claimNextTask, updateTaskStatus } from '../queue/state.js';
+import {
+  countTasksByStatus,
+  loadRunState,
+  loadTaskStore,
+  mergeScanFindings,
+  saveRunState,
+  saveTaskStore,
+  claimNextTask,
+  updateTaskStatus,
+} from '../queue/state.js';
 import { renderTaskQueues } from '../queue/render.js';
 import { buildFixPrompt, buildScanPrompt } from './prompts.js';
 import { getRuntimeAdapter } from '../providers/index.js';
@@ -40,7 +49,7 @@ async function saveAllState(
   projectRoot: string,
   config: CorydoraConfig,
   store: TaskStore,
-  state: RunState
+  state: RunState,
 ): Promise<void> {
   await saveTaskStore(projectRoot, config, store);
   await renderTaskQueues(projectRoot, config, store);
@@ -66,14 +75,16 @@ async function processScans(options: {
   for (let index = 0; index < options.files.length; index += concurrency) {
     const slice = options.files.slice(index, index + concurrency);
     const results = await Promise.all(
-      slice.map(async file => {
+      slice.map(async (file) => {
         const fileContent = await readFile(resolve(options.workRoot, file), 'utf8');
         const prompt = buildScanPrompt({
           filePath: file,
           fileContent,
           fingerprint,
-          agents: options.agents.filter(agent =>
-            agent.categories.some(category => options.config.agents.enabledCategories.includes(category))
+          agents: options.agents.filter((agent) =>
+            agent.categories.some((category) =>
+              options.config.agents.enabledCategories.includes(category),
+            ),
           ),
         });
 
@@ -93,7 +104,7 @@ async function processScans(options: {
             success: false as const,
           };
         }
-      })
+      }),
     );
 
     for (const item of results) {
@@ -131,7 +142,11 @@ async function processSingleFix(options: {
   store: TaskStore;
 }): Promise<{ state: RunState; store: TaskStore; fixedTaskId?: string }> {
   const adapter = getRuntimeAdapter(options.config.runtime.provider);
-  const claimedTask = claimNextTask(options.store, options.state.runId, options.config.scan.allowBroadRisk);
+  const claimedTask = claimNextTask(
+    options.store,
+    options.state.runId,
+    options.config.scan.allowBroadRisk,
+  );
   if (!claimedTask) {
     return { state: options.state, store: options.store };
   }
@@ -168,14 +183,14 @@ async function processSingleFix(options: {
         ? false
         : commitAllChanges(
             options.workRoot,
-            `corydora: ${claimedTask.category}: ${claimedTask.title.slice(0, 60)}`
+            `corydora: ${claimedTask.category}: ${claimedTask.title.slice(0, 60)}`,
           );
 
     nextStore = updateTaskStatus(
       nextStore,
       claimedTask.id,
       committed || result.changedFiles.length > 0 ? 'done' : 'blocked',
-      committed || result.changedFiles.length > 0 ? undefined : 'No changes were produced.'
+      committed || result.changedFiles.length > 0 ? undefined : 'No changes were produced.',
     );
     nextState = {
       ...nextState,
@@ -194,7 +209,7 @@ async function processSingleFix(options: {
       nextStore,
       claimedTask.id,
       'failed',
-      error instanceof Error ? error.message : String(error)
+      error instanceof Error ? error.message : String(error),
     );
     nextState = {
       ...nextState,
@@ -217,7 +232,9 @@ async function shouldStop(projectRoot: string, config: CorydoraConfig): Promise<
 export async function runCorydoraSession(options: RunSessionOptions): Promise<RunState> {
   await ensureCorydoraStructure(options.projectRoot, options.config);
 
-  const existingRun = options.resume ? await loadRunState(options.projectRoot, options.config) : null;
+  const existingRun = options.resume
+    ? await loadRunState(options.projectRoot, options.config)
+    : null;
   const runId = existingRun?.runId ?? randomUUID().slice(0, 8);
   const isolation = prepareIsolationContext({
     projectRoot: options.projectRoot,

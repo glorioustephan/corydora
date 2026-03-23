@@ -47,7 +47,8 @@ export class FakeRuntimeAdapter implements RuntimeAdapter {
           category: 'todo' as const,
           title: 'Replace placeholder implementation with a concrete branch.',
           file: targetFile,
-          rationale: 'The fake runtime emits a stable task so the scheduler and queue renderer can be tested deterministically.',
+          rationale:
+            'The fake runtime emits a stable task so the scheduler and queue renderer can be tested deterministically.',
           validation: 'Run the narrowest existing project test command.',
           severity: 'low' as const,
           effort: 'small' as const,

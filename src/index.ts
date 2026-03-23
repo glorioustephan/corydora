@@ -62,7 +62,7 @@ program.action(async (_options, command) => {
 program
   .command('init')
   .option('--yes', 'Accept defaults without prompting', false)
-  .action(async commandOptions => {
+  .action(async (commandOptions) => {
     const ui = createUi(Boolean(program.opts().json));
     await runInitCommand(
       {
@@ -70,7 +70,7 @@ program
         json: Boolean(program.opts().json),
         yes: Boolean(commandOptions.yes),
       },
-      ui
+      ui,
     );
   });
 
@@ -81,7 +81,7 @@ program
   .option('--foreground', 'Force foreground mode', false)
   .option('--resume', 'Resume the last recorded run state', false)
   .option('--session-name <name>', 'Internal tmux session metadata')
-  .action(async commandOptions => {
+  .action(async (commandOptions) => {
     const ui = createUi(Boolean(program.opts().json));
     await runRunCommand(
       {
@@ -94,7 +94,7 @@ program
         sessionName:
           typeof commandOptions.sessionName === 'string' ? commandOptions.sessionName : undefined,
       },
-      ui
+      ui,
     );
   });
 
@@ -124,23 +124,27 @@ agentsCommand.command('list').action(async () => {
   await runAgentsListCommand(resolveProjectRoot(process.cwd()), Boolean(program.opts().json), ui);
 });
 
-agentsCommand.command('import <dir>').action(async sourceDirectory => {
+agentsCommand.command('import <dir>').action(async (sourceDirectory) => {
   const ui = createUi(Boolean(program.opts().json));
   await runAgentsImportCommand(
     resolveProjectRoot(process.cwd()),
     String(sourceDirectory),
     Boolean(program.opts().json),
-    ui
+    ui,
   );
 });
 
 const configCommand = program.command('config');
 configCommand.command('validate').action(async () => {
   const ui = createUi(Boolean(program.opts().json));
-  await runConfigValidateCommand(resolveProjectRoot(process.cwd()), Boolean(program.opts().json), ui);
+  await runConfigValidateCommand(
+    resolveProjectRoot(process.cwd()),
+    Boolean(program.opts().json),
+    ui,
+  );
 });
 
-program.parseAsync(process.argv).catch(error => {
+program.parseAsync(process.argv).catch((error) => {
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(`${message}\n`);
   process.exit(1);

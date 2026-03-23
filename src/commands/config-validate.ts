@@ -4,7 +4,7 @@ import type { Ui } from '../ui/output.js';
 export async function runConfigValidateCommand(
   projectRoot: string,
   json: boolean,
-  ui: Ui
+  ui: Ui,
 ): Promise<void> {
   const config = await loadRequiredConfig(projectRoot);
   if (json) {

@@ -29,7 +29,7 @@ export function findGitRoot(startDir: string): string {
     }).trim();
   } catch {
     return (
-      walkUp(startDir, directory => existsSync(resolve(directory, '.git'))) ?? resolve(startDir)
+      walkUp(startDir, (directory) => existsSync(resolve(directory, '.git'))) ?? resolve(startDir)
     );
   }
 }
@@ -47,7 +47,10 @@ function detectPackageManager(projectRoot: string): ProjectFingerprint['packageM
     return 'yarn';
   }
 
-  if (existsSync(resolve(projectRoot, 'bun.lockb')) || existsSync(resolve(projectRoot, 'bun.lock'))) {
+  if (
+    existsSync(resolve(projectRoot, 'bun.lockb')) ||
+    existsSync(resolve(projectRoot, 'bun.lock'))
+  ) {
     return 'bun';
   }
 
@@ -58,8 +61,8 @@ export function detectProjectFingerprint(projectRoot: string): ProjectFingerprin
   const frameworks = new Set<string>();
   const techLenses = new Set<TechLens>(['typescript']);
   const topLevelDirectories = readdirSync(projectRoot, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
-    .map(entry => entry.name)
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
     .sort((left, right) => left.localeCompare(right));
 
   if (existsSync(resolve(projectRoot, 'package.json'))) {
@@ -106,8 +109,8 @@ export function detectProjectFingerprint(projectRoot: string): ProjectFingerprin
   techLenses.add('refactoring');
 
   const packageRoots = ['packages', 'apps', 'clients']
-    .map(segment => resolve(projectRoot, segment))
-    .filter(directory => existsSync(directory));
+    .map((segment) => resolve(projectRoot, segment))
+    .filter((directory) => existsSync(directory));
 
   const packageCount =
     packageRoots.length === 0
@@ -117,7 +120,8 @@ export function detectProjectFingerprint(projectRoot: string): ProjectFingerprin
       : packageRoots.reduce((count, directory) => {
           return (
             count +
-            readdirSync(directory, { withFileTypes: true }).filter(entry => entry.isDirectory()).length
+            readdirSync(directory, { withFileTypes: true }).filter((entry) => entry.isDirectory())
+              .length
           );
         }, 0);
 

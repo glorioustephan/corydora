@@ -22,7 +22,18 @@ const scanFindingSchema = z.object({
   risk: z.enum(['low', 'medium', 'broad']),
   sourceAgent: z.string().min(1),
   techLenses: z
-    .array(z.enum(['typescript', 'react', 'nextjs', 'node-cli', 'electron', 'security', 'database', 'refactoring']))
+    .array(
+      z.enum([
+        'typescript',
+        'react',
+        'nextjs',
+        'node-cli',
+        'electron',
+        'security',
+        'database',
+        'refactoring',
+      ]),
+    )
     .default(['refactoring']),
 });
 
@@ -42,7 +53,7 @@ const fixPayloadSchema = z.object({
       z.object({
         path: z.string().min(1),
         content: z.string(),
-      })
+      }),
     )
     .optional(),
 });
@@ -141,15 +152,15 @@ export async function runProcess(input: {
     let stdout = '';
     let stderr = '';
 
-    proc.stdout.on('data', chunk => {
+    proc.stdout.on('data', (chunk) => {
       stdout += chunk.toString();
     });
-    proc.stderr.on('data', chunk => {
+    proc.stderr.on('data', (chunk) => {
       stderr += chunk.toString();
     });
 
-    proc.on('error', error => reject(error));
-    proc.on('close', code => {
+    proc.on('error', (error) => reject(error));
+    proc.on('close', (code) => {
       resolveProcess({
         stdout,
         stderr,
@@ -173,9 +184,9 @@ export function listChangedFiles(cwd: string): string[] {
 
     return raw
       .split('\n')
-      .map(line => line.trimEnd())
+      .map((line) => line.trimEnd())
       .filter(Boolean)
-      .map(line => line.slice(3).trim())
+      .map((line) => line.slice(3).trim())
       .filter(Boolean);
   } catch {
     return [];

@@ -3,11 +3,7 @@ import { loadRequiredConfig } from './helpers.js';
 import { tmuxSessionExists } from '../runtime/tmux.js';
 import type { Ui } from '../ui/output.js';
 
-export async function runStatusCommand(
-  projectRoot: string,
-  json: boolean,
-  ui: Ui
-): Promise<void> {
+export async function runStatusCommand(projectRoot: string, json: boolean, ui: Ui): Promise<void> {
   const config = await loadRequiredConfig(projectRoot);
   const [runState, taskStore] = await Promise.all([
     loadRunState(projectRoot, config),
@@ -23,8 +19,9 @@ export async function runStatusCommand(
       failed: countTasksByStatus(taskStore, 'failed'),
       blocked: countTasksByStatus(taskStore, 'blocked'),
     },
-    tmuxAttached:
-      runState?.background?.sessionName ? tmuxSessionExists(runState.background.sessionName) : false,
+    tmuxAttached: runState?.background?.sessionName
+      ? tmuxSessionExists(runState.background.sessionName)
+      : false,
   };
 
   if (json) {

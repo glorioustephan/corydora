@@ -102,7 +102,9 @@ class CliRuntimeAdapter implements RuntimeAdapter {
       {
         id: `${probe.provider}-binary`,
         ok: probe.installed,
-        message: probe.installed ? `${probe.label} binary detected.` : `${probe.label} binary not found.`,
+        message: probe.installed
+          ? `${probe.label} binary detected.`
+          : `${probe.label} binary not found.`,
       },
       {
         id: `${probe.provider}-auth`,
@@ -171,7 +173,7 @@ class CliRuntimeAdapter implements RuntimeAdapter {
       const changedFiles = parsed.changedFiles.length > 0 ? parsed.changedFiles : afterChangedFiles;
       return {
         ...parsed,
-        changedFiles: changedFiles.filter(file => !beforeChangedFiles.includes(file)),
+        changedFiles: changedFiles.filter((file) => !beforeChangedFiles.includes(file)),
       };
     } finally {
       await cleanupInvocation(invocation);
@@ -281,8 +283,8 @@ const codexAdapter = new CliRuntimeAdapter({
           required: ['fileSummary', 'tasks'],
         },
         null,
-        2
-      )
+        2,
+      ),
     );
     const outputPath = await createTempFile('scan-output.json', '');
     return {

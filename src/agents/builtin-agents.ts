@@ -37,8 +37,7 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
     description: 'Turns comments, skipped code paths, and deferred work into concrete tasks.',
     categories: ['todo'],
     techLenses: ['typescript', 'refactoring'],
-    prompt:
-      'Convert vague technical debt into actionable, scoped tasks. Avoid broad rewrites.',
+    prompt: 'Convert vague technical debt into actionable, scoped tasks. Avoid broad rewrites.',
     source: 'builtin',
   },
   {
@@ -64,11 +63,11 @@ export const BUILTIN_AGENTS: AgentDefinition[] = [
   {
     id: 'database-reviewer',
     label: 'Database Reviewer',
-    description: 'Finds risky queries, schema drift issues, and performance bottlenecks around data access.',
+    description:
+      'Finds risky queries, schema drift issues, and performance bottlenecks around data access.',
     categories: ['bugs', 'performance'],
     techLenses: ['database', 'typescript', 'node-cli'],
-    prompt:
-      'Focus on concrete query risks, indexing concerns, and data-layer correctness.',
+    prompt: 'Focus on concrete query risks, indexing concerns, and data-layer correctness.',
     source: 'builtin',
   },
   {

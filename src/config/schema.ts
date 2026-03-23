@@ -6,12 +6,15 @@ import {
   DEFAULT_MODELS,
   RUNTIME_PROVIDER_IDS,
   CORYDORA_DIR_NAME,
-  TECH_LENSES,
 } from '../constants.js';
-import type { GitIsolationMode, RuntimeProviderId, CorydoraConfig, TechLens } from '../types/domain.js';
+import type {
+  GitIsolationMode,
+  RuntimeProviderId,
+  CorydoraConfig,
+  TechLens,
+} from '../types/domain.js';
 
 const categorySchema = z.enum(['bugs', 'performance', 'tests', 'todo', 'features']);
-const techLensSchema = z.enum(TECH_LENSES);
 const providerSchema = z.enum(RUNTIME_PROVIDER_IDS);
 const isolationModeSchema = z.enum(['worktree', 'branch', 'current-branch']);
 

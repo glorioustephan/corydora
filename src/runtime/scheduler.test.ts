@@ -13,8 +13,8 @@ describe('scheduler', () => {
     const batch = selectScanBatch(state, files, 2);
 
     expect(batch).toHaveLength(2);
-    expect(batch.some(file => file.startsWith('packages/core'))).toBe(true);
-    expect(batch.some(file => file.startsWith('apps/web'))).toBe(true);
+    expect(batch.some((file) => file.startsWith('packages/core'))).toBe(true);
+    expect(batch.some((file) => file.startsWith('apps/web'))).toBe(true);
   });
 
   it('advances cursors when files are processed', () => {

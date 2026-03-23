@@ -44,7 +44,12 @@ function shouldIncludeFile(filePath: string, options: DiscoveryOptions): boolean
   return true;
 }
 
-function walk(directory: string, projectRoot: string, options: DiscoveryOptions, files: string[]): void {
+function walk(
+  directory: string,
+  projectRoot: string,
+  options: DiscoveryOptions,
+  files: string[],
+): void {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (options.excludeDirectories.includes(entry.name)) {

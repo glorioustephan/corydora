@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
@@ -13,7 +13,6 @@ import type {
 } from '../types/domain.js';
 import {
   buildProbe,
-  listChangedFiles,
   missingAuth,
   normalizeFixResult,
   normalizeScanResult,
@@ -27,7 +26,7 @@ abstract class ApiRuntimeAdapter implements RuntimeAdapter {
   constructor(
     readonly id: RuntimeAdapter['id'],
     readonly label: string,
-    private readonly models: string[]
+    private readonly models: string[],
   ) {}
 
   abstract probe(projectRoot: string): Promise<RuntimeProbe>;
@@ -61,20 +60,18 @@ function extractApiKey(envName: string[]): string | null {
   return null;
 }
 
-function applyFileEditsToResult(
-  workingDirectory: string,
-  parsed: FixResult
-): Promise<FixResult> {
+function applyFileEditsToResult(workingDirectory: string, parsed: FixResult): Promise<FixResult> {
   const fileEdits = parsed.fileEdits;
   if (!fileEdits || fileEdits.length === 0) {
     return Promise.resolve(parsed);
   }
 
   return Promise.all(
-    fileEdits.map(edit => writeFile(resolve(workingDirectory, edit.path), edit.content, 'utf8'))
+    fileEdits.map((edit) => writeFile(resolve(workingDirectory, edit.path), edit.content, 'utf8')),
   ).then(() => ({
     ...parsed,
-    changedFiles: parsed.changedFiles.length > 0 ? parsed.changedFiles : fileEdits.map(edit => edit.path),
+    changedFiles:
+      parsed.changedFiles.length > 0 ? parsed.changedFiles : fileEdits.map((edit) => edit.path),
   }));
 }
 
@@ -89,7 +86,9 @@ class AnthropicApiAdapter extends ApiRuntimeAdapter {
       provider: this.id,
       label: this.label,
       installed: true,
-      auth: apiKey ? successAuth('ANTHROPIC_API_KEY is present.') : missingAuth('ANTHROPIC_API_KEY is missing.'),
+      auth: apiKey
+        ? successAuth('ANTHROPIC_API_KEY is present.')
+        : missingAuth('ANTHROPIC_API_KEY is missing.'),
       models: this.suggestModels(),
     });
   }
@@ -111,7 +110,7 @@ class AnthropicApiAdapter extends ApiRuntimeAdapter {
       messages: [{ role: 'user', content: context.prompt }],
     });
     const output = response.content
-      .map(block => ('text' in block ? block.text : ''))
+      .map((block) => ('text' in block ? block.text : ''))
       .join('\n')
       .trim();
     return normalizeScanResult(output);
@@ -139,7 +138,7 @@ class AnthropicApiAdapter extends ApiRuntimeAdapter {
       messages: [{ role: 'user', content: context.prompt }],
     });
     const output = response.content
-      .map(block => ('text' in block ? block.text : ''))
+      .map((block) => ('text' in block ? block.text : ''))
       .join('\n')
       .trim();
     return applyFileEditsToResult(context.workingDirectory, normalizeFixResult(output));
@@ -157,7 +156,9 @@ class OpenAiApiAdapter extends ApiRuntimeAdapter {
       provider: this.id,
       label: this.label,
       installed: true,
-      auth: apiKey ? successAuth('OPENAI_API_KEY is present.') : missingAuth('OPENAI_API_KEY is missing.'),
+      auth: apiKey
+        ? successAuth('OPENAI_API_KEY is present.')
+        : missingAuth('OPENAI_API_KEY is missing.'),
       models: this.suggestModels(),
     });
   }
@@ -200,7 +201,10 @@ class OpenAiApiAdapter extends ApiRuntimeAdapter {
       model: context.model,
       input: context.prompt,
     });
-    return applyFileEditsToResult(context.workingDirectory, normalizeFixResult(response.output_text));
+    return applyFileEditsToResult(
+      context.workingDirectory,
+      normalizeFixResult(response.output_text),
+    );
   }
 }
 
@@ -247,7 +251,7 @@ class GoogleApiAdapter extends ApiRuntimeAdapter {
             },
           ],
         }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -259,7 +263,7 @@ class GoogleApiAdapter extends ApiRuntimeAdapter {
     };
     const output =
       payload.candidates?.[0]?.content?.parts
-        ?.map(part => part.text ?? '')
+        ?.map((part) => part.text ?? '')
         .join('\n')
         .trim() ?? '';
 
@@ -296,7 +300,7 @@ class GoogleApiAdapter extends ApiRuntimeAdapter {
             },
           ],
         }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -308,7 +312,7 @@ class GoogleApiAdapter extends ApiRuntimeAdapter {
     };
     const output =
       payload.candidates?.[0]?.content?.parts
-        ?.map(part => part.text ?? '')
+        ?.map((part) => part.text ?? '')
         .join('\n')
         .trim() ?? '';
 
@@ -363,12 +367,12 @@ class BedrockApiAdapter extends ApiRuntimeAdapter {
         inferenceConfig: {
           maxTokens: 4096,
         },
-      })
+      }),
     );
 
     const output =
       response.output?.message?.content
-        ?.map(item => ('text' in item ? item.text ?? '' : ''))
+        ?.map((item) => ('text' in item ? (item.text ?? '') : ''))
         .join('\n')
         .trim() ?? '';
 
@@ -403,12 +407,12 @@ class BedrockApiAdapter extends ApiRuntimeAdapter {
         inferenceConfig: {
           maxTokens: 4096,
         },
-      })
+      }),
     );
 
     const output =
       response.output?.message?.content
-        ?.map(item => ('text' in item ? item.text ?? '' : ''))
+        ?.map((item) => ('text' in item ? (item.text ?? '') : ''))
         .join('\n')
         .trim() ?? '';
 
@@ -486,7 +490,10 @@ class OllamaAdapter extends ApiRuntimeAdapter {
     }
 
     const payload = (await response.json()) as { response?: string };
-    return applyFileEditsToResult(context.workingDirectory, normalizeFixResult(payload.response ?? ''));
+    return applyFileEditsToResult(
+      context.workingDirectory,
+      normalizeFixResult(payload.response ?? ''),
+    );
   }
 }
 

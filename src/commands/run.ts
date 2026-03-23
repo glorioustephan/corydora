@@ -32,8 +32,10 @@ export async function runRunCommand(options: RunCommandOptions, ui: Ui): Promise
     const scheduler = restoreSchedulerState(runState?.scheduler, files);
     const nextScanBatch = selectScanBatch(scheduler, files, config.scan.batchSize);
     const nextTask =
-      store.tasks.find(task => task.status === 'pending' && (config.scan.allowBroadRisk || task.risk !== 'broad')) ??
-      null;
+      store.tasks.find(
+        (task) =>
+          task.status === 'pending' && (config.scan.allowBroadRisk || task.risk !== 'broad'),
+      ) ?? null;
 
     const preview = {
       dryRun: true,

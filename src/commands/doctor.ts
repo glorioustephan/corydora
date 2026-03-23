@@ -3,21 +3,17 @@ import { probeAvailableRuntimes, getRuntimeAdapters } from '../providers/index.j
 import { supportsTmux } from '../runtime/tmux.js';
 import type { Ui } from '../ui/output.js';
 
-export async function runDoctorCommand(
-  projectRoot: string,
-  json: boolean,
-  ui: Ui
-): Promise<void> {
+export async function runDoctorCommand(projectRoot: string, json: boolean, ui: Ui): Promise<void> {
   const [fingerprint, probes] = await Promise.all([
     Promise.resolve(detectProjectFingerprint(projectRoot)),
     probeAvailableRuntimes(projectRoot),
   ]);
 
   const runtimeChecks = await Promise.all(
-    getRuntimeAdapters().map(async adapter => ({
+    getRuntimeAdapters().map(async (adapter) => ({
       provider: adapter.id,
       checks: await adapter.doctor(projectRoot),
-    }))
+    })),
   );
 
   const payload = {
@@ -37,6 +33,8 @@ export async function runDoctorCommand(
   ui.info(`tmux available: ${supportsTmux() ? 'yes' : 'no'}`);
 
   for (const probe of probes) {
-    ui.info(`${probe.provider}: installed=${probe.installed} auth=${probe.auth.status} (${probe.auth.message})`);
+    ui.info(
+      `${probe.provider}: installed=${probe.installed} auth=${probe.auth.status} (${probe.auth.message})`,
+    );
   }
 }

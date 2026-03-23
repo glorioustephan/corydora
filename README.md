@@ -5,6 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/corydora.svg)](https://www.npmjs.com/package/corydora)
 [![npm downloads](https://img.shields.io/npm/dm/corydora.svg)](https://www.npmjs.com/package/corydora)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Docs](https://img.shields.io/badge/docs-vitepress-7c3aed.svg)](https://glorioustephan.github.io/corydora/)
 
 <p align="center">
   <img src="./logo.png" alt="Corydora" width="320px" />
@@ -24,7 +25,10 @@ runtime matrix is not equally mature across providers.
 ### Current readiness
 
 - Core CLI commands are implemented and covered by automated tests.
-- CI is configured for `typecheck`, `test`, and `build` on every push and pull request to `main`.
+- CI is configured for `lint`, `format:check`, `typecheck`, `test`, and `build` on every push and
+  pull request to `main`.
+- The package supports Node `20.19.0` or newer.
+- CI, publish, and local version-manager hints are standardized on Node `24.14.0`.
 - npm publishing is configured through GitHub Actions using **npm trusted publishing** and GitHub
   OIDC.
 - CI currently runs on `ubuntu-latest` only; a multi-OS matrix is not in place yet.
@@ -60,7 +64,11 @@ corydora run --background
 ## Development
 
 ```bash
+fnm use
+# or: nvm use
 pnpm install
+pnpm lint
+pnpm format:check
 pnpm typecheck
 pnpm test
 pnpm build
@@ -69,6 +77,8 @@ pnpm pack:preview
 
 The main verification surface right now is:
 
+- `pnpm lint`
+- `pnpm format:check`
 - `pnpm typecheck`
 - `pnpm test`
 - `pnpm build`
@@ -76,6 +86,12 @@ The main verification surface right now is:
 
 `pnpm check` runs the core verification steps and is also used by `prepublishOnly`. `pnpm
 pack:preview` produces the exact npm tarball shape that CI uploads as a workflow artifact.
+
+### Commit workflow
+
+- `pnpm commit` launches Commitizen with the conventional changelog prompt.
+- ESLint uses a flat config in `eslint.config.mjs`.
+- Prettier uses `prettier.config.mjs` and `.editorconfig`.
 
 ## Command Surface
 
@@ -92,18 +108,24 @@ pack:preview` produces the exact npm tarball shape that CI uploads as a workflow
 
 ## Docs
 
-- [Provider Setup](./docs/provider-setup.md)
-- [Agent Catalog](./docs/agent-catalog.md)
-- [Security Model](./docs/security-model.md)
-- [Config Schema](./docs/config-schema.md)
-- [Releasing](./docs/releasing.md)
+Full documentation is available at **[glorioustephan.github.io/corydora](https://glorioustephan.github.io/corydora/)**.
+
+- [Getting Started](https://glorioustephan.github.io/corydora/getting-started)
+- [Quickstart](https://glorioustephan.github.io/corydora/quickstart)
+- [CLI Reference](https://glorioustephan.github.io/corydora/cli-reference)
+- [Configuration](https://glorioustephan.github.io/corydora/configuration)
+- [Providers](https://glorioustephan.github.io/corydora/providers/)
+- [Agent Catalog](https://glorioustephan.github.io/corydora/agents/)
+- [Security Model](https://glorioustephan.github.io/corydora/security)
+- [How It Works](https://glorioustephan.github.io/corydora/how-it-works)
 
 ## CI/CD
 
 Corydora ships two GitHub Actions workflows:
 
-- `ci.yml`: runs `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm test`, and `pnpm build`
-  on pushes and pull requests to `main`, then uploads an npm tarball preview artifact.
+- `ci.yml`: runs `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm format:check`, `pnpm
+typecheck`, `pnpm test`, and `pnpm build` on pushes and pull requests to `main`, then uploads an
+  npm tarball preview artifact.
 - `publish.yml`: runs the same verification steps on a `v*` git tag or manual dispatch, then
   publishes to npm via trusted publishing.
 
@@ -119,7 +141,7 @@ Before the first public release, configure npm trusted publishing for this repos
 5. Publish by pushing a semver tag such as `v0.1.0`.
 
 Trusted publishing also requires GitHub-hosted runners, Node `22.14.0` or newer, and npm CLI
-`11.5.1` or newer. The publish workflow pins Node `22.14.0` and upgrades npm explicitly before it
+`11.5.1` or newer. The publish workflow pins Node `24.14.0` and upgrades npm explicitly before it
 calls `npm publish`.
 
 ## Notes

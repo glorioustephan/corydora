@@ -31,7 +31,7 @@ function renderCategoryDocument(category: TaskCategory, tasks: TaskRecord[]): st
 
   for (const task of tasks) {
     lines.push(
-      `- ${statusMarker(task)} ${task.title} (\`${task.file}\`) <!-- corydora:id=${task.id} risk=${task.risk} severity=${task.severity} -->`
+      `- ${statusMarker(task)} ${task.title} (\`${task.file}\`) <!-- corydora:id=${task.id} risk=${task.risk} severity=${task.severity} -->`,
     );
     lines.push(`  - Why: ${task.rationale}`);
     lines.push(`  - Validate: ${task.validation}`);
@@ -51,16 +51,20 @@ function renderCategoryDocument(category: TaskCategory, tasks: TaskRecord[]): st
 export async function renderTaskQueues(
   projectRoot: string,
   config: CorydoraConfig,
-  store: TaskStore
+  store: TaskStore,
 ): Promise<void> {
   for (const [category, fileName] of Object.entries(TASK_CATEGORY_FILES) as Array<
     [TaskCategory, string]
   >) {
     const tasks = store.tasks
-      .filter(task => task.category === category)
-      .filter(task => config.todo.renderCompletedTasks || task.status !== 'done')
+      .filter((task) => task.category === category)
+      .filter((task) => config.todo.renderCompletedTasks || task.status !== 'done')
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
     const document = renderCategoryDocument(category, tasks);
-    await writeFile(resolve(projectRoot, config.paths.corydoraDir, fileName), `${document}\n`, 'utf8');
+    await writeFile(
+      resolve(projectRoot, config.paths.corydoraDir, fileName),
+      `${document}\n`,
+      'utf8',
+    );
   }
 }

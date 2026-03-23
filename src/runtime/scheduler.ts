@@ -3,7 +3,7 @@ import type { SchedulerState } from '../types/domain.js';
 
 export function restoreSchedulerState(
   existing: SchedulerState | undefined,
-  files: string[]
+  files: string[],
 ): SchedulerState {
   const grouped = groupFilesForScheduling(files);
   const groups = Object.keys(grouped).sort((left, right) => left.localeCompare(right));
@@ -11,16 +11,18 @@ export function restoreSchedulerState(
   if (!existing) {
     return {
       groupOrder: groups,
-      groupCursors: Object.fromEntries(groups.map(group => [group, 0])),
+      groupCursors: Object.fromEntries(groups.map((group) => [group, 0])),
       completedFiles: [],
       failedFiles: [],
     };
   }
 
   return {
-    groupOrder: [...new Set([...existing.groupOrder.filter(group => groups.includes(group)), ...groups])],
+    groupOrder: [
+      ...new Set([...existing.groupOrder.filter((group) => groups.includes(group)), ...groups]),
+    ],
     groupCursors: Object.fromEntries(
-      groups.map(group => [group, Math.max(0, existing.groupCursors[group] ?? 0)])
+      groups.map((group) => [group, Math.max(0, existing.groupCursors[group] ?? 0)]),
     ),
     completedFiles: [...new Set(existing.completedFiles)],
     failedFiles: [...new Set(existing.failedFiles)],
@@ -30,7 +32,7 @@ export function restoreSchedulerState(
 export function selectScanBatch(
   state: SchedulerState,
   files: string[],
-  batchSize: number
+  batchSize: number,
 ): string[] {
   const grouped = groupFilesForScheduling(files);
   const selected: string[] = [];
@@ -69,7 +71,7 @@ export function selectScanBatch(
 export function noteFileProcessed(
   state: SchedulerState,
   file: string,
-  success: boolean
+  success: boolean,
 ): SchedulerState {
   const grouped = groupFilesForScheduling([file]);
   const group = Object.keys(grouped)[0] ?? '.';
@@ -80,9 +82,7 @@ export function noteFileProcessed(
       ...state.groupCursors,
       [group]: (state.groupCursors[group] ?? 0) + 1,
     },
-    completedFiles: success
-      ? [...new Set([...state.completedFiles, file])]
-      : state.completedFiles,
+    completedFiles: success ? [...new Set([...state.completedFiles, file])] : state.completedFiles,
     failedFiles: success ? state.failedFiles : [...new Set([...state.failedFiles, file])],
   };
 }
