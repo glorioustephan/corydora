@@ -1,10 +1,14 @@
 # Corydora
 
 [![Status: Alpha](https://img.shields.io/badge/status-alpha-orange.svg)](#project-status)
-[![CI](https://github.com/jamesleebaker/corydora/actions/workflows/ci.yml/badge.svg)](https://github.com/jamesleebaker/corydora/actions/workflows/ci.yml)
+[![CI](https://github.com/glorioustephan/corydora/actions/workflows/ci.yml/badge.svg)](https://github.com/glorioustephan/corydora/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/corydora.svg)](https://www.npmjs.com/package/corydora)
 [![npm downloads](https://img.shields.io/npm/dm/corydora.svg)](https://www.npmjs.com/package/corydora)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
+<p align="center">
+  <img src="./logo.png" alt="Corydora" width="320px" />
+</p>
 
 Corydora is a globally installable CLI for overnight AI-assisted codebase cleanup. It detects the
 AI runtimes available in a project, creates a `.corydora.json` config plus a `.corydora/` working

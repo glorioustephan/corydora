@@ -28,6 +28,7 @@
   },
   "files": [
     "dist",
+    "logo.webp",
     "README.md",
     "docs",
     "schemas"
