@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.corydora
+.corydora/.env.local
+.corydora/bugs.md
+.corydora/features.md
+.corydora/logs/
+.corydora/performance.md
+.corydora/runs/
+.corydora/state/
+.corydora/tests.md
+.corydora/todo.md
+*.log
+.artifacts
+coverage
+dist
+node_modules

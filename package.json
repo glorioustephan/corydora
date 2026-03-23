@@ -1,0 +1,65 @@
+{
+  "name": "corydora",
+  "version": "0.1.0",
+  "description": "Provider-neutral overnight AI code scrubbing CLI.",
+  "keywords": [
+    "ai",
+    "cli",
+    "codex",
+    "claude",
+    "gemini",
+    "automation",
+    "refactoring",
+    "quality"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/glorioustephan/corydora.git"
+  },
+  "homepage": "https://github.com/glorioustephan/corydora#readme",
+  "bugs": {
+    "url": "https://github.com/glorioustephan/corydora/issues"
+  },
+  "bin": {
+    "corydora": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs",
+    "schemas"
+  ],
+  "scripts": {
+    "build": "pnpm clean && tsc -p tsconfig.json",
+    "clean": "node -e \"const fs=require('node:fs'); for (const dir of ['dist','coverage','.artifacts']) { fs.rmSync(dir,{ recursive:true, force:true }); }\"",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "dev": "node --import tsx ./src/index.ts",
+    "pack:preview": "pnpm build && pnpm pack --pack-destination .artifacts",
+    "prepublishOnly": "pnpm check",
+    "test": "vitest --run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=20.18.0",
+    "pnpm": ">=10.32.1"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1014.0",
+    "@clack/prompts": "^1.1.0",
+    "@google/genai": "^1.46.0",
+    "commander": "^14.0.3",
+    "consola": "^3.4.2",
+    "openai": "^6.32.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  }
+}

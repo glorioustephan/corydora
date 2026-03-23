@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://corydora.dev/schemas/corydora.schema.json",
+  "title": "CorydoraConfig",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "git",
+    "runtime",
+    "agents",
+    "scan",
+    "execution",
+    "todo",
+    "paths"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "isolationMode",
+        "branchPrefix",
+        "trackMarkdownQueues"
+      ],
+      "properties": {
+        "isolationMode": {
+          "type": "string",
+          "enum": [
+            "worktree",
+            "branch",
+            "current-branch"
+          ]
+        },
+        "branchPrefix": {
+          "type": "string"
+        },
+        "trackMarkdownQueues": {
+          "type": "boolean"
+        },
+        "worktreeRoot": {
+          "type": "string"
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "fallbackProvider": {
+          "type": "string"
+        }
+      }
+    },
+    "agents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabledCategories",
+        "selectedBuiltinAgents"
+      ],
+      "properties": {
+        "enabledCategories": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "bugs",
+              "performance",
+              "tests",
+              "todo",
+              "features"
+            ]
+          }
+        },
+        "selectedBuiltinAgents": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "importedAgentDirectory": {
+          "type": "string"
+        }
+      }
+    },
+    "scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "batchSize",
+        "maxConcurrentScans",
+        "allowBroadRisk",
+        "includeExtensions",
+        "excludeDirectories"
+      ],
+      "properties": {
+        "batchSize": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxConcurrentScans": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "allowBroadRisk": {
+          "type": "boolean"
+        },
+        "includeExtensions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excludeDirectories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "backgroundByDefault",
+        "maxFixesPerRun",
+        "maxRuntimeMinutes",
+        "backlogTarget",
+        "validateAfterFix"
+      ],
+      "properties": {
+        "backgroundByDefault": {
+          "type": "boolean"
+        },
+        "maxFixesPerRun": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxRuntimeMinutes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "backlogTarget": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "validateAfterFix": {
+          "type": "boolean"
+        }
+      }
+    },
+    "todo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trackMarkdownFiles",
+        "renderCompletedTasks"
+      ],
+      "properties": {
+        "trackMarkdownFiles": {
+          "type": "boolean"
+        },
+        "renderCompletedTasks": {
+          "type": "boolean"
+        }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "corydoraDir",
+        "stateDir",
+        "logsDir",
+        "runsDir",
+        "agentsDir",
+        "envFile"
+      ],
+      "properties": {
+        "corydoraDir": {
+          "type": "string"
+        },
+        "stateDir": {
+          "type": "string"
+        },
+        "logsDir": {
+          "type": "string"
+        },
+        "runsDir": {
+          "type": "string"
+        },
+        "agentsDir": {
+          "type": "string"
+        },
+        "envFile": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
