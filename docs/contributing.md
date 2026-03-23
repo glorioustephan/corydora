@@ -23,15 +23,19 @@ pnpm install
 
 ## Development Commands
 
-| Command             | Description                                                    |
-| ------------------- | -------------------------------------------------------------- |
-| `pnpm dev`          | Run the CLI from source using tsx (no build step required)     |
-| `pnpm typecheck`    | TypeScript type checking without emitting output               |
-| `pnpm test`         | Run the test suite with Vitest                                 |
-| `pnpm build`        | Compile TypeScript to `dist/`                                  |
-| `pnpm check`        | Run typecheck, test, and build in sequence (full verification) |
-| `pnpm pack:preview` | Create a local npm tarball for manual install testing          |
-| `pnpm docs:dev`     | Start the VitePress docs site in development mode              |
+| Command             | Description                                                  |
+| ------------------- | ------------------------------------------------------------ |
+| `pnpm dev`          | Run the CLI from source using tsx (no build step required)   |
+| `pnpm lint`         | Run ESLint across source, tests, docs tooling, and workflows |
+| `pnpm format`       | Format the repository with Prettier                          |
+| `pnpm format:check` | Verify formatting without writing changes                    |
+| `pnpm typecheck`    | TypeScript type checking without emitting output             |
+| `pnpm test`         | Run the test suite with Vitest                               |
+| `pnpm build`        | Compile TypeScript to `dist/`                                |
+| `pnpm check`        | Run lint, format, typecheck, test, and build in sequence     |
+| `pnpm pack:preview` | Create a local npm tarball for manual install testing        |
+| `pnpm commit`       | Open Commitizen for a Conventional Commit message            |
+| `pnpm docs:dev`     | Start the VitePress docs site in development mode            |
 
 Run `pnpm check` before opening a pull request to confirm the full verification pipeline passes locally.
 
@@ -84,27 +88,30 @@ Steps in order:
 
 1. Checkout
 2. `pnpm install`
-3. `pnpm typecheck`
-4. `pnpm test`
-5. `pnpm build`
-6. `pnpm pack:preview`
+3. `pnpm lint`
+4. `pnpm format:check`
+5. `pnpm typecheck`
+6. `pnpm test`
+7. `pnpm build`
+8. `pnpm pack:preview`
 
 The npm tarball produced by `pack:preview` is uploaded as a workflow artifact with a 7-day retention period. You can download it from the Actions run to test the exact package that would be published.
 
 ## Release Process
 
-Releases are published to npm automatically via GitHub Actions using trusted publishing (OIDC). No `NPM_TOKEN` secret is required.
+Releases are published to npm automatically via GitHub Actions using release-please and npm trusted publishing (OIDC). No long-lived `NPM_TOKEN` secret is required.
 
-1. Merge all changes to `main`.
-2. Confirm `pnpm check` passes locally.
-3. Push a semver tag:
+1. Stage your work and run `pnpm commit`.
+2. Use Conventional Commit types consistently:
+   - `fix:` => patch release
+   - `feat:` => minor release
+   - `feat!:` / `fix!:` / `BREAKING CHANGE:` => major release
+3. Merge releasable changes into `main`.
+4. release-please opens or updates a release PR that bumps `package.json` and `CHANGELOG.md`.
+5. Merge the release PR when you want to publish.
+6. The `publish.yml` workflow publishes the tagged release to npm.
 
-```bash
-git tag v0.2.0
-git push origin v0.2.0
-```
-
-The publish workflow triggers on the tag push, builds the package, and publishes it to npm. The tag must follow semver format (`vMAJOR.MINOR.PATCH`).
+If you want CI workflows to run on the bot-created release PR itself, configure a `RELEASE_PLEASE_TOKEN` secret with a GitHub token that can open pull requests.
 
 ## Code Conventions
 

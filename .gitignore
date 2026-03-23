@@ -12,6 +12,7 @@
 .corydora/todo.md
 *.log
 .artifacts
+artifacts
 coverage
 dist
 node_modules

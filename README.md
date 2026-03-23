@@ -90,6 +90,10 @@ pack:preview` produces the exact npm tarball shape that CI uploads as a workflow
 ### Commit workflow
 
 - `pnpm commit` launches Commitizen with the conventional changelog prompt.
+- Conventional Commit types drive semantic versioning through release-please:
+  `fix` => patch, `feat` => minor, and `!` / `BREAKING CHANGE` => major.
+- Release PRs update `package.json` and `CHANGELOG.md`; you no longer need to push version tags by
+  hand.
 - ESLint uses a flat config in `eslint.config.mjs`.
 - Prettier uses `prettier.config.mjs` and `.editorconfig`.
 
@@ -126,8 +130,8 @@ Corydora ships two GitHub Actions workflows:
 - `ci.yml`: runs `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm format:check`, `pnpm
 typecheck`, `pnpm test`, and `pnpm build` on pushes and pull requests to `main`, then uploads an
   npm tarball preview artifact.
-- `publish.yml`: runs the same verification steps on a `v*` git tag or manual dispatch, then
-  publishes to npm via trusted publishing.
+- `publish.yml`: runs release-please on pushes to `main`, opens or updates a release PR from
+  Conventional Commits, and publishes to npm only when merging that release PR creates a release.
 
 ### Trusted publishing requirements
 
@@ -137,8 +141,10 @@ Before the first public release, configure npm trusted publishing for this repos
 2. Confirm the `repository`, `homepage`, and `bugs` fields in `package.json` match the real repo.
 3. In npm package settings, add a trusted publisher for GitHub Actions with workflow filename
    `publish.yml`.
-4. Optionally protect the `npm` GitHub environment before enabling publish.
-5. Publish by pushing a semver tag such as `v0.1.0`.
+4. Optionally add a `RELEASE_PLEASE_TOKEN` GitHub secret if you want bot-created release PRs to
+   trigger other workflows normally.
+5. Optionally protect the `npm` GitHub environment before enabling publish.
+6. Publish by merging the release PR that release-please opens against `main`.
 
 Trusted publishing also requires GitHub-hosted runners, Node `22.14.0` or newer, and npm CLI
 `11.5.1` or newer. The publish workflow pins Node `24.14.0` and upgrades npm explicitly before it
@@ -149,5 +155,6 @@ calls `npm publish`.
 - Secrets never belong in `.corydora.json`.
 - `.corydora/.env.local` is ignored by default.
 - Markdown queue files are projections of machine state in `.corydora/state/`.
+- The root `CHANGELOG.md` is the canonical release history and is maintained by release-please.
 - The npm publish workflow assumes GitHub-hosted runners, which is also what npm trusted publishing
   currently requires.

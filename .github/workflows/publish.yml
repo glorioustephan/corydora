@@ -1,66 +1,86 @@
-name: Publish
+name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: publish-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     environment: npm
     steps:
-      - name: Checkout
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Checkout released ref
+        if: ${{ steps.release.outputs.release_created }}
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.release.outputs.tag_name }}
 
       - name: Setup pnpm
+        if: ${{ steps.release.outputs.release_created }}
         uses: pnpm/action-setup@v4
         with:
           version: 10.32.1
 
       - name: Setup Node.js
+        if: ${{ steps.release.outputs.release_created }}
         uses: actions/setup-node@v6
         with:
           node-version: 24.14.0
           registry-url: https://registry.npmjs.org
 
       - name: Upgrade npm for trusted publishing
+        if: ${{ steps.release.outputs.release_created }}
         run: npm install --global npm@^11.5.1
 
       - name: Install dependencies
+        if: ${{ steps.release.outputs.release_created }}
         run: pnpm install --frozen-lockfile
 
       - name: Lint
+        if: ${{ steps.release.outputs.release_created }}
         run: pnpm lint
 
       - name: Format check
+        if: ${{ steps.release.outputs.release_created }}
         run: pnpm format:check
 
       - name: Typecheck
+        if: ${{ steps.release.outputs.release_created }}
         run: pnpm typecheck
 
       - name: Test
+        if: ${{ steps.release.outputs.release_created }}
         run: pnpm test
 
       - name: Build
+        if: ${{ steps.release.outputs.release_created }}
         run: pnpm build
 
       - name: Pack preview
-        run: pnpm pack --pack-destination .artifacts
-
-      - name: Verify tag matches package version
-        if: github.event_name == 'push'
-        run: |
-          node -e "const pkg=require('./package.json'); const tag=process.env.GITHUB_REF_NAME; if (tag !== `v${pkg.version}`) { console.error(`Tag ${tag} does not match package version v${pkg.version}`); process.exit(1); }"
+        if: ${{ steps.release.outputs.release_created }}
+        run: pnpm pack --pack-destination artifacts
 
       - name: Publish to npm
+        if: ${{ steps.release.outputs.release_created }}
         run: npm publish

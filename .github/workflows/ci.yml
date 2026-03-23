@@ -50,12 +50,12 @@ jobs:
         run: pnpm build
 
       - name: Pack preview
-        run: pnpm pack --pack-destination .artifacts
+        run: pnpm pack --pack-destination artifacts
 
       - name: Upload pack artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: npm-pack-preview
-          path: .artifacts/*.tgz
+          path: artifacts/*.tgz
           if-no-files-found: error
           retention-days: 7

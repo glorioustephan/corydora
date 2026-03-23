@@ -28,6 +28,7 @@
   },
   "files": [
     "dist",
+    "CHANGELOG.md",
     "logo.webp",
     "README.md",
     "docs",
@@ -35,7 +36,7 @@
   ],
   "scripts": {
     "build": "pnpm clean && tsc -p tsconfig.json",
-    "clean": "node -e \"const fs=require('node:fs'); for (const dir of ['dist','coverage','.artifacts']) { fs.rmSync(dir,{ recursive:true, force:true }); }\"",
+    "clean": "rimraf dist coverage .artifacts artifacts",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "commit": "cz",
     "dev": "node --import tsx ./src/index.ts",
@@ -43,7 +44,7 @@
     "format:check": "prettier . --check",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "pack:preview": "pnpm build && pnpm pack --pack-destination .artifacts",
+    "pack:preview": "pnpm build && pnpm pack --pack-destination artifacts",
     "prepublishOnly": "pnpm check",
     "test": "vitest --run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -79,6 +80,7 @@
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.4.0",
     "prettier": "^3.8.1",
+    "rimraf": "^6.1.3",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.1",
