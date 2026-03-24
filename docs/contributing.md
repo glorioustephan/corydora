@@ -10,7 +10,7 @@ Corydora is an open-source project and contributions are welcome. This guide cov
 
 Requirements:
 
-- **Node.js** `24.14.0` or newer
+- **Node.js** `24.14.0` or newer for local development and CI
 - **pnpm** `10.32.1` or newer
 
 Clone the repository and install dependencies:
@@ -18,8 +18,11 @@ Clone the repository and install dependencies:
 ```bash
 git clone https://github.com/glorioustephan/corydora.git
 cd corydora
+nvm use 24.14.0
 pnpm install
 ```
+
+The published CLI supports Node.js `20.19.0` or newer, but local development, CI, and release automation are standardized on Node.js `24.14.0`.
 
 ## Development Commands
 
@@ -38,6 +41,48 @@ pnpm install
 | `pnpm docs:dev`     | Start the VitePress docs site in development mode            |
 
 Run `pnpm check` before opening a pull request to confirm the full verification pipeline passes locally.
+
+## Day-To-Day Git Flow
+
+Use short-lived branches and open pull requests for normal changes. Do not commit directly to `main`.
+
+Start a new change:
+
+```bash
+git checkout main
+git pull origin main
+git checkout -b feature/my-change
+```
+
+Make changes, then run the full local verification pass:
+
+```bash
+pnpm check
+```
+
+Stage and commit with a Conventional Commit message:
+
+```bash
+git add .
+pnpm commit
+```
+
+You can also commit manually:
+
+```bash
+git commit -m "fix: handle empty workspace in run command"
+git commit -m "feat: add provider retry backoff"
+git commit -m "feat!: change runtime config schema"
+```
+
+Push the branch and open a pull request:
+
+```bash
+git push -u origin feature/my-change
+gh pr create
+```
+
+After review and green CI, merge the pull request into `main`.
 
 ## Project Structure
 
@@ -82,7 +127,7 @@ Provider smoke tests are opt-in because they depend on local vendor authenticati
 
 ## CI Pipeline
 
-CI runs on every push to `main` and on every pull request.
+CI runs on every push to `main` and on every pull request. The main verification workflow is `ci.yml`.
 
 Steps in order:
 
@@ -97,19 +142,59 @@ Steps in order:
 
 The npm tarball produced by `pack:preview` is uploaded as a workflow artifact with a 7-day retention period. You can download it from the Actions run to test the exact package that would be published.
 
+Changes under `docs/` also trigger `docs.yml`, which builds the VitePress site and deploys it to GitHub Pages after merge to `main`.
+
 ## Release Process
 
 Releases are published to npm automatically via GitHub Actions using release-please and npm trusted publishing (OIDC). No long-lived `NPM_TOKEN` secret is required.
 
-1. Stage your work and run `pnpm commit`.
-2. Use Conventional Commit types consistently:
-   - `fix:` => patch release
-   - `feat:` => minor release
-   - `feat!:` / `fix!:` / `BREAKING CHANGE:` => major release
-3. Merge releasable changes into `main`.
+### Semver Rules
+
+release-please derives the next version from Conventional Commits merged into `main`:
+
+- `fix:` => patch release
+- `feat:` => minor release
+- `feat!:` / `fix!:` / `BREAKING CHANGE:` => major release
+
+### Release Flow
+
+1. Make your change on a branch.
+2. Open and merge a pull request into `main`.
+3. GitHub Actions runs `publish.yml` on the `main` push.
 4. release-please opens or updates a release PR that bumps `package.json` and `CHANGELOG.md`.
-5. Merge the release PR when you want to publish.
-6. The `publish.yml` workflow publishes the tagged release to npm.
+5. Review and merge the release PR when you want to publish.
+6. The same publish workflow detects the created release, re-runs verification, and publishes the tagged version to npm.
+
+### Maintainer CLI Flow
+
+This is the normal end-to-end command-line workflow:
+
+```bash
+cd /Users/jamesleebaker/Codespace/corydora
+nvm use 24.14.0
+
+git checkout main
+git pull origin main
+git checkout -b feature/my-change
+
+# make changes
+
+pnpm check
+git add .
+pnpm commit
+git push -u origin feature/my-change
+gh pr create
+```
+
+After the feature or fix PR is merged, wait for release-please to open or update the release PR. Then review and merge that PR to ship the release:
+
+```bash
+gh pr list
+gh pr view <release-pr-number>
+gh pr merge <release-pr-number>
+```
+
+Do not bump versions by hand, edit `CHANGELOG.md` manually for releases, create git tags yourself, or run `npm publish` for routine releases. release-please and `publish.yml` own that flow.
 
 If you want CI workflows to run on the bot-created release PR itself, configure a `RELEASE_PLEASE_TOKEN` secret with a GitHub token that can open pull requests.
 
