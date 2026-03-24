@@ -52,6 +52,9 @@ Specifies which AI provider and model Corydora uses to execute agent tasks.
 | `provider`         | `RuntimeProviderId` | —                 | The AI runtime to use (required)                          |
 | `model`            | `string`            | Provider-specific | Model identifier passed to the provider                   |
 | `fallbackProvider` | `RuntimeProviderId` | —                 | Secondary provider to use if the primary fails (optional) |
+| `maxOutputTokens`  | `integer` (min 1)   | `8192`            | Upper bound for generated output tokens per provider call |
+| `requestTimeoutMs` | `integer` (min 1)   | `900000`          | Per-request timeout in milliseconds (15 minutes)          |
+| `maxRetries`       | `integer` (min 0)   | `3`               | Retry budget for retryable request failures               |
 
 ### Provider IDs
 
@@ -157,6 +160,7 @@ Controls run lifecycle limits and behavior.
 | Property              | Type              | Default | Description                                                                |
 | --------------------- | ----------------- | ------- | -------------------------------------------------------------------------- |
 | `backgroundByDefault` | `boolean`         | `false` | Automatically launch runs in a tmux session without needing `--background` |
+| `preventIdleSleep`    | `boolean`         | `true`  | On macOS, wrap background runs with `caffeinate -i` when available         |
 | `maxFixesPerRun`      | `integer` (min 1) | `20`    | Maximum number of fixes applied before the run stops                       |
 | `maxRuntimeMinutes`   | `integer` (min 1) | `480`   | Maximum wall-clock duration in minutes before the run stops (8 hours)      |
 | `backlogTarget`       | `integer` (min 1) | `8`     | Target number of pending tasks to maintain before scanning more files      |
@@ -211,7 +215,10 @@ The following `.corydora.json` shows every field with sensible production values
   "runtime": {
     "provider": "anthropic-api",
     "model": "claude-sonnet-4-5",
-    "fallbackProvider": "claude-cli"
+    "fallbackProvider": "claude-cli",
+    "maxOutputTokens": 8192,
+    "requestTimeoutMs": 900000,
+    "maxRetries": 3
   },
   "agents": {
     "enabledCategories": ["bugs", "performance", "tests", "todo"],
@@ -250,6 +257,7 @@ The following `.corydora.json` shows every field with sensible production values
   },
   "execution": {
     "backgroundByDefault": true,
+    "preventIdleSleep": true,
     "maxFixesPerRun": 20,
     "maxRuntimeMinutes": 480,
     "backlogTarget": 8,

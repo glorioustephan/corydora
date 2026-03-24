@@ -21,6 +21,12 @@ export interface CorydoraPaths {
   envFile: string;
 }
 
+export interface RuntimeRequestSettings {
+  maxOutputTokens: number;
+  requestTimeoutMs: number;
+  maxRetries: number;
+}
+
 export interface CorydoraConfig {
   version: 1;
   git: {
@@ -33,7 +39,7 @@ export interface CorydoraConfig {
     provider: RuntimeProviderId;
     model: string;
     fallbackProvider?: RuntimeProviderId;
-  };
+  } & RuntimeRequestSettings;
   agents: {
     enabledCategories: TaskCategory[];
     selectedBuiltinAgents: string[];
@@ -48,6 +54,7 @@ export interface CorydoraConfig {
   };
   execution: {
     backgroundByDefault: boolean;
+    preventIdleSleep: boolean;
     maxFixesPerRun: number;
     maxRuntimeMinutes: number;
     backlogTarget: number;
@@ -150,6 +157,7 @@ export interface BackgroundSession {
   sessionName: string;
   launchCommand: string;
   launchedAt: string;
+  keepAwake?: boolean;
 }
 
 export interface RunState {
@@ -204,6 +212,7 @@ export interface RuntimeExecutionContext {
   prompt: string;
   schema?: string;
   dryRun: boolean;
+  settings: RuntimeRequestSettings;
 }
 
 export interface RuntimeAdapter {

@@ -19,6 +19,7 @@ import {
   normalizeFixResult,
   normalizeScanResult,
   readHomeFile,
+  retryAsync,
   runProcess,
   successAuth,
   unknownAuth,
@@ -126,11 +127,16 @@ class CliRuntimeAdapter implements RuntimeAdapter {
 
     const invocation = await this.definition.buildScanInvocation(context);
     try {
-      const result = await runProcess({
-        command: invocation.command,
-        args: invocation.args,
-        cwd: context.workingDirectory,
-        ...(invocation.stdin ? { stdin: invocation.stdin } : {}),
+      const result = await retryAsync({
+        maxRetries: context.settings.maxRetries,
+        operation: async () =>
+          runProcess({
+            command: invocation.command,
+            args: invocation.args,
+            cwd: context.workingDirectory,
+            timeoutMs: context.settings.requestTimeoutMs,
+            ...(invocation.stdin ? { stdin: invocation.stdin } : {}),
+          }),
       });
       const output = await readInvocationOutput(invocation, result.stdout);
       if (result.exitCode !== 0) {
@@ -161,6 +167,7 @@ class CliRuntimeAdapter implements RuntimeAdapter {
         command: invocation.command,
         args: invocation.args,
         cwd: context.workingDirectory,
+        timeoutMs: context.settings.requestTimeoutMs,
         ...(invocation.stdin ? { stdin: invocation.stdin } : {}),
       });
       const output = await readInvocationOutput(invocation, result.stdout);

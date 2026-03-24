@@ -1,6 +1,6 @@
 import { detectProjectFingerprint } from '../filesystem/project.js';
 import { probeAvailableRuntimes, getRuntimeAdapters } from '../providers/index.js';
-import { supportsTmux } from '../runtime/tmux.js';
+import { supportsBackgroundKeepAwake, supportsTmux } from '../runtime/tmux.js';
 import type { Ui } from '../ui/output.js';
 
 export async function runDoctorCommand(projectRoot: string, json: boolean, ui: Ui): Promise<void> {
@@ -19,6 +19,7 @@ export async function runDoctorCommand(projectRoot: string, json: boolean, ui: U
   const payload = {
     fingerprint,
     tmuxAvailable: supportsTmux(),
+    backgroundKeepAwakeAvailable: supportsBackgroundKeepAwake(),
     runtimes: probes,
     checks: runtimeChecks,
   };
@@ -31,6 +32,7 @@ export async function runDoctorCommand(projectRoot: string, json: boolean, ui: U
   ui.info(`Package manager: ${fingerprint.packageManager}`);
   ui.info(`Frameworks: ${fingerprint.frameworks.join(', ') || 'none detected'}`);
   ui.info(`tmux available: ${supportsTmux() ? 'yes' : 'no'}`);
+  ui.info(`background keep-awake available: ${supportsBackgroundKeepAwake() ? 'yes' : 'no'}`);
 
   for (const probe of probes) {
     ui.info(

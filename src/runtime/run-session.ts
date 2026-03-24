@@ -95,6 +95,11 @@ async function processScans(options: {
             model: options.config.runtime.model,
             prompt,
             dryRun: false,
+            settings: {
+              maxOutputTokens: options.config.runtime.maxOutputTokens,
+              requestTimeoutMs: options.config.runtime.requestTimeoutMs,
+              maxRetries: options.config.runtime.maxRetries,
+            },
           });
           return { file, result, success: true as const };
         } catch (error) {
@@ -176,6 +181,11 @@ async function processSingleFix(options: {
       model: options.config.runtime.model,
       prompt,
       dryRun: false,
+      settings: {
+        maxOutputTokens: options.config.runtime.maxOutputTokens,
+        requestTimeoutMs: options.config.runtime.requestTimeoutMs,
+        maxRetries: options.config.runtime.maxRetries,
+      },
     });
 
     const committed =
@@ -276,6 +286,7 @@ export async function runCorydoraSession(options: RunSessionOptions): Promise<Ru
             sessionName: options.sessionName,
             launchCommand: '',
             launchedAt: nowIso(),
+            keepAwake: process.env.CORYDORA_BACKGROUND_KEEP_AWAKE === '1',
           },
         }
       : {}),

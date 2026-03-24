@@ -6,6 +6,10 @@ export function supportsTmux(): boolean {
   return platform() !== 'win32' && commandExists('tmux');
 }
 
+export function supportsBackgroundKeepAwake(): boolean {
+  return platform() === 'darwin' && commandExists('caffeinate');
+}
+
 export function tmuxSessionExists(sessionName: string): boolean {
   if (!supportsTmux()) {
     return false;
@@ -27,13 +31,34 @@ function shellEscape(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-export function launchBackgroundRun(sessionName: string, args: string[], cwd: string): void {
+function buildBackgroundCommand(
+  args: string[],
+  preventIdleSleep: boolean,
+): {
+  command: string;
+  keepAwake: boolean;
+} {
+  const keepAwake = preventIdleSleep && supportsBackgroundKeepAwake();
+  const command = buildSelfCommand(args);
+
+  return {
+    command: keepAwake ? `CORYDORA_BACKGROUND_KEEP_AWAKE=1 caffeinate -i ${command}` : command,
+    keepAwake,
+  };
+}
+
+export function launchBackgroundRun(
+  sessionName: string,
+  args: string[],
+  cwd: string,
+  preventIdleSleep: boolean,
+): { keepAwake: boolean } {
   if (!supportsTmux()) {
     throw new Error('tmux is not available on this machine.');
   }
 
-  const command = buildSelfCommand(args);
-  const result = spawnSync('tmux', ['new-session', '-d', '-s', sessionName, command], {
+  const launch = buildBackgroundCommand(args, preventIdleSleep);
+  const result = spawnSync('tmux', ['new-session', '-d', '-s', sessionName, launch.command], {
     cwd,
     stdio: 'ignore',
   });
@@ -41,6 +66,8 @@ export function launchBackgroundRun(sessionName: string, args: string[], cwd: st
   if (result.status !== 0) {
     throw new Error(`Unable to start tmux session "${sessionName}".`);
   }
+
+  return { keepAwake: launch.keepAwake };
 }
 
 export function attachToSession(sessionName: string): never {

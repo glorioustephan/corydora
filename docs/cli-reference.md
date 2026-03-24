@@ -132,11 +132,13 @@ corydora run --foreground
 ```json
 {
   "background": true,
-  "sessionName": "corydora-my-project-123456"
+  "sessionName": "corydora-my-project-123456",
+  "keepAwake": true
 }
 ```
 
 > `--background` requires tmux. If tmux is unavailable, the command exits with an error suggesting `--foreground`.
+> On macOS, `keepAwake` is `true` when Corydora was able to wrap the background run with `caffeinate -i`.
 
 ---
 
@@ -164,7 +166,8 @@ corydora status --json
     "branchName": "corydora/run-1711234567890",
     "worktreePath": ".corydora/worktrees/run-1711234567890",
     "background": {
-      "sessionName": "corydora-my-project-123456"
+      "sessionName": "corydora-my-project-123456",
+      "keepAwake": true
     }
   },
   "queue": {
@@ -251,6 +254,7 @@ ollama: installed=false auth=unauthenticated (OLLAMA_HOST not reachable)
     "techLenses": ["typescript", "react", "nextjs"]
   },
   "tmuxAvailable": true,
+  "backgroundKeepAwakeAvailable": true,
   "runtimes": [
     {
       "provider": "claude-cli",

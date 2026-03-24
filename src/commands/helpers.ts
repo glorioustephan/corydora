@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { CONFIG_FILE_NAME } from '../constants.js';
 import { loadConfig } from '../config/files.js';
+import { loadProjectEnv } from '../config/env.js';
 import { findGitRoot } from '../filesystem/project.js';
 import type { CorydoraConfig } from '../types/domain.js';
 
@@ -23,5 +24,7 @@ export async function loadRequiredConfig(
     );
   }
 
-  return loadConfig(projectRoot, configPath);
+  const config = await loadConfig(projectRoot, configPath);
+  await loadProjectEnv(projectRoot, config);
+  return config;
 }

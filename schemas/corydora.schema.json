@@ -33,7 +33,7 @@
     "runtime": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["provider", "model"],
+      "required": ["provider", "model", "maxOutputTokens", "requestTimeoutMs", "maxRetries"],
       "properties": {
         "provider": {
           "type": "string"
@@ -43,6 +43,18 @@
         },
         "fallbackProvider": {
           "type": "string"
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "requestTimeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxRetries": {
+          "type": "integer",
+          "minimum": 0
         }
       }
     },
@@ -110,6 +122,7 @@
       "additionalProperties": false,
       "required": [
         "backgroundByDefault",
+        "preventIdleSleep",
         "maxFixesPerRun",
         "maxRuntimeMinutes",
         "backlogTarget",
@@ -117,6 +130,9 @@
       ],
       "properties": {
         "backgroundByDefault": {
+          "type": "boolean"
+        },
+        "preventIdleSleep": {
           "type": "boolean"
         },
         "maxFixesPerRun": {

@@ -45,7 +45,7 @@ Pass any valid Anthropic model ID in the `model` field — Corydora forwards it 
 `anthropic-api` uses **single-file-json** execution. For each file being processed:
 
 1. Corydora reads the file content and builds a structured prompt.
-2. The prompt is sent to `POST /v1/messages` with `max_tokens: 4096`.
+2. The prompt is sent to `POST /v1/messages` with `max_tokens` taken from `runtime.maxOutputTokens` (default `8192`).
 3. The API response is parsed as a JSON payload containing either scan findings or fix instructions with `fileEdits`.
 4. If `fileEdits` are present, Corydora writes the replacement content to disk.
 
@@ -85,7 +85,7 @@ Add your key to `.corydora/.env.local`. Do not commit it to `.corydora.json`.
 
 **Response did not include valid scan JSON**
 
-The provider responded but Corydora could not parse a JSON object from the output. This can happen if the model hit the `max_tokens` limit mid-response or returned an error message as plain text. Check that your model supports the requested task size, and consider using a model with a higher output limit.
+The provider responded but Corydora could not parse a JSON object from the output. This can happen if the model hit the configured `runtime.maxOutputTokens` limit mid-response or returned an error message as plain text. Check that your model supports the requested task size, and consider raising `runtime.maxOutputTokens`.
 
 **Authentication errors from the API**
 

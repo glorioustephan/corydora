@@ -1,5 +1,4 @@
 import { writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import OpenAI from 'openai';
@@ -13,12 +12,25 @@ import type {
 } from '../types/domain.js';
 import {
   buildProbe,
+  createRetryableError,
+  isRetryableError,
   missingAuth,
   normalizeFixResult,
   normalizeScanResult,
+  resolvePathWithinRoot,
+  retryAsync,
   successAuth,
   unknownAuth,
 } from './utils.js';
+
+const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
+const RETRYABLE_BEDROCK_ERROR_NAMES = new Set([
+  'InternalServerException',
+  'ModelTimeoutException',
+  'ServiceUnavailableException',
+  'ThrottlingException',
+  'TimeoutError',
+]);
 
 abstract class ApiRuntimeAdapter implements RuntimeAdapter {
   readonly executionMode = 'single-file-json' as const;
@@ -67,12 +79,53 @@ function applyFileEditsToResult(workingDirectory: string, parsed: FixResult): Pr
   }
 
   return Promise.all(
-    fileEdits.map((edit) => writeFile(resolve(workingDirectory, edit.path), edit.content, 'utf8')),
+    fileEdits.map((edit) =>
+      writeFile(resolvePathWithinRoot(workingDirectory, edit.path), edit.content, 'utf8'),
+    ),
   ).then(() => ({
     ...parsed,
     changedFiles:
       parsed.changedFiles.length > 0 ? parsed.changedFiles : fileEdits.map((edit) => edit.path),
   }));
+}
+
+function isRetryableStatusCode(status: number): boolean {
+  return RETRYABLE_STATUS_CODES.has(status);
+}
+
+function isRetryableBedrockError(error: unknown): boolean {
+  return error instanceof Error && RETRYABLE_BEDROCK_ERROR_NAMES.has(error.name);
+}
+
+async function postJsonWithRetries<T>(
+  context: RuntimeExecutionContext,
+  url: string,
+  providerLabel: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  return retryAsync({
+    maxRetries: context.settings.maxRetries,
+    shouldRetry: (error) => isRetryableError(error),
+    operation: async () => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(context.settings.requestTimeoutMs),
+      });
+
+      if (!response.ok) {
+        const message = `${providerLabel} request failed with ${response.status}.`;
+        throw isRetryableStatusCode(response.status)
+          ? createRetryableError(message)
+          : new Error(message);
+      }
+
+      return (await response.json()) as T;
+    },
+  });
 }
 
 class AnthropicApiAdapter extends ApiRuntimeAdapter {
@@ -103,10 +156,14 @@ class AnthropicApiAdapter extends ApiRuntimeAdapter {
       throw new Error('ANTHROPIC_API_KEY is required for anthropic-api.');
     }
 
-    const client = new Anthropic({ apiKey });
+    const client = new Anthropic({
+      apiKey,
+      timeout: context.settings.requestTimeoutMs,
+      maxRetries: context.settings.maxRetries,
+    });
     const response = await client.messages.create({
       model: context.model,
-      max_tokens: 4096,
+      max_tokens: context.settings.maxOutputTokens,
       messages: [{ role: 'user', content: context.prompt }],
     });
     const output = response.content
@@ -131,10 +188,14 @@ class AnthropicApiAdapter extends ApiRuntimeAdapter {
       throw new Error('ANTHROPIC_API_KEY is required for anthropic-api.');
     }
 
-    const client = new Anthropic({ apiKey });
+    const client = new Anthropic({
+      apiKey,
+      timeout: context.settings.requestTimeoutMs,
+      maxRetries: context.settings.maxRetries,
+    });
     const response = await client.messages.create({
       model: context.model,
-      max_tokens: 4096,
+      max_tokens: context.settings.maxOutputTokens,
       messages: [{ role: 'user', content: context.prompt }],
     });
     const output = response.content
@@ -173,10 +234,15 @@ class OpenAiApiAdapter extends ApiRuntimeAdapter {
       throw new Error('OPENAI_API_KEY is required for openai-api.');
     }
 
-    const client = new OpenAI({ apiKey });
+    const client = new OpenAI({
+      apiKey,
+      timeout: context.settings.requestTimeoutMs,
+      maxRetries: context.settings.maxRetries,
+    });
     const response = await client.responses.create({
       model: context.model,
       input: context.prompt,
+      max_output_tokens: context.settings.maxOutputTokens,
     });
     return normalizeScanResult(response.output_text);
   }
@@ -196,10 +262,15 @@ class OpenAiApiAdapter extends ApiRuntimeAdapter {
       throw new Error('OPENAI_API_KEY is required for openai-api.');
     }
 
-    const client = new OpenAI({ apiKey });
+    const client = new OpenAI({
+      apiKey,
+      timeout: context.settings.requestTimeoutMs,
+      maxRetries: context.settings.maxRetries,
+    });
     const response = await client.responses.create({
       model: context.model,
       input: context.prompt,
+      max_output_tokens: context.settings.maxOutputTokens,
     });
     return applyFileEditsToResult(
       context.workingDirectory,
@@ -236,31 +307,24 @@ class GoogleApiAdapter extends ApiRuntimeAdapter {
       throw new Error('GOOGLE_API_KEY or GEMINI_API_KEY is required for google-api.');
     }
 
-    const response = await fetch(
+    const payload = await postJsonWithRetries<{
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    }>(
+      context,
       `https://generativelanguage.googleapis.com/v1beta/models/${context.model}:generateContent?key=${apiKey}`,
+      'Google API',
       {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: context.prompt }],
+          },
+        ],
+        generationConfig: {
+          maxOutputTokens: context.settings.maxOutputTokens,
         },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: context.prompt }],
-            },
-          ],
-        }),
       },
     );
-
-    if (!response.ok) {
-      throw new Error(`Google API request failed with ${response.status}.`);
-    }
-
-    const payload = (await response.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
     const output =
       payload.candidates?.[0]?.content?.parts
         ?.map((part) => part.text ?? '')
@@ -285,31 +349,24 @@ class GoogleApiAdapter extends ApiRuntimeAdapter {
       throw new Error('GOOGLE_API_KEY or GEMINI_API_KEY is required for google-api.');
     }
 
-    const response = await fetch(
+    const payload = await postJsonWithRetries<{
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    }>(
+      context,
       `https://generativelanguage.googleapis.com/v1beta/models/${context.model}:generateContent?key=${apiKey}`,
+      'Google API',
       {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: context.prompt }],
+          },
+        ],
+        generationConfig: {
+          maxOutputTokens: context.settings.maxOutputTokens,
         },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: context.prompt }],
-            },
-          ],
-        }),
       },
     );
-
-    if (!response.ok) {
-      throw new Error(`Google API request failed with ${response.status}.`);
-    }
-
-    const payload = (await response.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
     const output =
       payload.candidates?.[0]?.content?.parts
         ?.map((part) => part.text ?? '')
@@ -355,20 +412,28 @@ class BedrockApiAdapter extends ApiRuntimeAdapter {
     }
 
     const client = new BedrockRuntimeClient({ region });
-    const response = await client.send(
-      new ConverseCommand({
-        modelId: context.model,
-        messages: [
+    const response = await retryAsync({
+      maxRetries: context.settings.maxRetries,
+      shouldRetry: (error) => isRetryableBedrockError(error),
+      operation: async () =>
+        client.send(
+          new ConverseCommand({
+            modelId: context.model,
+            messages: [
+              {
+                role: 'user',
+                content: [{ text: context.prompt }],
+              },
+            ],
+            inferenceConfig: {
+              maxTokens: context.settings.maxOutputTokens,
+            },
+          }),
           {
-            role: 'user',
-            content: [{ text: context.prompt }],
+            abortSignal: AbortSignal.timeout(context.settings.requestTimeoutMs),
           },
-        ],
-        inferenceConfig: {
-          maxTokens: 4096,
-        },
-      }),
-    );
+        ),
+    });
 
     const output =
       response.output?.message?.content
@@ -395,20 +460,28 @@ class BedrockApiAdapter extends ApiRuntimeAdapter {
     }
 
     const client = new BedrockRuntimeClient({ region });
-    const response = await client.send(
-      new ConverseCommand({
-        modelId: context.model,
-        messages: [
+    const response = await retryAsync({
+      maxRetries: context.settings.maxRetries,
+      shouldRetry: (error) => isRetryableBedrockError(error),
+      operation: async () =>
+        client.send(
+          new ConverseCommand({
+            modelId: context.model,
+            messages: [
+              {
+                role: 'user',
+                content: [{ text: context.prompt }],
+              },
+            ],
+            inferenceConfig: {
+              maxTokens: context.settings.maxOutputTokens,
+            },
+          }),
           {
-            role: 'user',
-            content: [{ text: context.prompt }],
+            abortSignal: AbortSignal.timeout(context.settings.requestTimeoutMs),
           },
-        ],
-        inferenceConfig: {
-          maxTokens: 4096,
-        },
-      }),
-    );
+        ),
+    });
 
     const output =
       response.output?.message?.content
@@ -442,23 +515,19 @@ class OllamaAdapter extends ApiRuntimeAdapter {
     }
 
     const host = process.env.OLLAMA_HOST ?? 'http://127.0.0.1:11434';
-    const response = await fetch(`${host}/api/generate`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
+    const payload = await postJsonWithRetries<{ response?: string }>(
+      context,
+      `${host}/api/generate`,
+      'Ollama',
+      {
         model: context.model,
         prompt: context.prompt,
         stream: false,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Ollama request failed with ${response.status}.`);
-    }
-
-    const payload = (await response.json()) as { response?: string };
+        options: {
+          num_predict: context.settings.maxOutputTokens,
+        },
+      },
+    );
     return normalizeScanResult(payload.response ?? '');
   }
 
@@ -473,23 +542,19 @@ class OllamaAdapter extends ApiRuntimeAdapter {
     }
 
     const host = process.env.OLLAMA_HOST ?? 'http://127.0.0.1:11434';
-    const response = await fetch(`${host}/api/generate`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
+    const payload = await postJsonWithRetries<{ response?: string }>(
+      context,
+      `${host}/api/generate`,
+      'Ollama',
+      {
         model: context.model,
         prompt: context.prompt,
         stream: false,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Ollama request failed with ${response.status}.`);
-    }
-
-    const payload = (await response.json()) as { response?: string };
+        options: {
+          num_predict: context.settings.maxOutputTokens,
+        },
+      },
+    );
     return applyFileEditsToResult(
       context.workingDirectory,
       normalizeFixResult(payload.response ?? ''),

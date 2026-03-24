@@ -35,6 +35,8 @@ runtime matrix is not equally mature across providers.
 - CLI-backed runtimes (`claude-cli`, `codex-cli`, `gemini-cli`) support native agent/tool editing.
 - API-backed runtimes currently use a constrained JSON rewrite mode that is best suited to
   single-file tasks.
+- Background tmux runs on macOS use `caffeinate -i` when available so overnight sessions can keep running with the display asleep.
+- Runtime request size, timeout, and retry budgets are configurable in `.corydora.json`.
 - Provider smoke tests exist but are opt-in because they depend on local vendor auth and binaries.
 - Coverage reporting and coverage thresholds are not wired into CI yet.
 

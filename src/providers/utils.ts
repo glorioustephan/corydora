@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import type {
   FixResult,
@@ -62,6 +62,10 @@ export interface ProcessResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+}
+
+interface RetryableError extends Error {
+  retryable: true;
 }
 
 export function commandExists(command: string): boolean {
@@ -138,6 +142,7 @@ export async function runProcess(input: {
   cwd: string;
   stdin?: string;
   env?: Record<string, string | undefined>;
+  timeoutMs?: number;
 }): Promise<ProcessResult> {
   return new Promise((resolveProcess, reject) => {
     const proc = spawn(input.command, input.args, {
@@ -151,6 +156,15 @@ export async function runProcess(input: {
 
     let stdout = '';
     let stderr = '';
+    let timedOut = false;
+    const timeoutHandle =
+      input.timeoutMs !== undefined
+        ? setTimeout(() => {
+            timedOut = true;
+            proc.kill('SIGTERM');
+            setTimeout(() => proc.kill('SIGKILL'), 2_000).unref();
+          }, input.timeoutMs)
+        : null;
 
     proc.stdout.on('data', (chunk) => {
       stdout += chunk.toString();
@@ -161,6 +175,15 @@ export async function runProcess(input: {
 
     proc.on('error', (error) => reject(error));
     proc.on('close', (code) => {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+
+      if (timedOut) {
+        reject(new Error(`${input.command} timed out after ${input.timeoutMs}ms.`));
+        return;
+      }
+
       resolveProcess({
         stdout,
         stderr,
@@ -190,6 +213,43 @@ export function listChangedFiles(cwd: string): string[] {
       .filter(Boolean);
   } catch {
     return [];
+  }
+}
+
+export function createRetryableError(message: string): Error {
+  const error = new Error(message) as RetryableError;
+  error.retryable = true;
+  return error;
+}
+
+export function isRetryableError(error: unknown): boolean {
+  return (
+    error instanceof Error && 'retryable' in error && (error as RetryableError).retryable === true
+  );
+}
+
+export async function retryAsync<T>(options: {
+  maxRetries: number;
+  operation: (attempt: number) => Promise<T>;
+  shouldRetry?: (error: unknown, attempt: number) => boolean;
+}): Promise<T> {
+  let attempt = 0;
+
+  while (true) {
+    try {
+      return await options.operation(attempt);
+    } catch (error) {
+      const shouldRetry =
+        attempt < options.maxRetries &&
+        (options.shouldRetry ? options.shouldRetry(error, attempt) : true);
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      const backoffMs = Math.min(1_000 * 2 ** attempt, 8_000);
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, backoffMs));
+      attempt += 1;
+    }
   }
 }
 
@@ -225,4 +285,18 @@ export function buildProbe(options: {
 
 export function resolvePathFromProject(projectRoot: string, relativePath: string): string {
   return resolve(projectRoot, relativePath);
+}
+
+export function resolvePathWithinRoot(rootDir: string, candidatePath: string): string {
+  const resolvedPath = resolve(rootDir, candidatePath);
+  const relativePath = relative(rootDir, resolvedPath);
+  if (
+    candidatePath.trim().length === 0 ||
+    relativePath === '..' ||
+    relativePath.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`)
+  ) {
+    throw new Error(`Refusing to write outside the working tree: ${candidatePath}`);
+  }
+
+  return resolvedPath;
 }

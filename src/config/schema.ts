@@ -30,6 +30,9 @@ export const corydoraConfigSchema = z.object({
     provider: providerSchema,
     model: z.string().min(1),
     fallbackProvider: providerSchema.optional(),
+    maxOutputTokens: z.number().int().positive(),
+    requestTimeoutMs: z.number().int().positive(),
+    maxRetries: z.number().int().min(0),
   }),
   agents: z.object({
     enabledCategories: z.array(categorySchema).min(1),
@@ -45,6 +48,7 @@ export const corydoraConfigSchema = z.object({
   }),
   execution: z.object({
     backgroundByDefault: z.boolean(),
+    preventIdleSleep: z.boolean(),
     maxFixesPerRun: z.number().int().positive(),
     maxRuntimeMinutes: z.number().int().positive(),
     backlogTarget: z.number().int().positive(),
@@ -92,6 +96,9 @@ export function getDefaultConfig(options: {
     runtime: {
       provider: options.provider,
       model: options.model ?? getDefaultModel(options.provider),
+      maxOutputTokens: 8192,
+      requestTimeoutMs: 900_000,
+      maxRetries: 3,
     },
     agents: {
       enabledCategories: ['bugs', 'performance', 'tests', 'todo', 'features'],
@@ -106,6 +113,7 @@ export function getDefaultConfig(options: {
     },
     execution: {
       backgroundByDefault: options.backgroundByDefault ?? false,
+      preventIdleSleep: true,
       maxFixesPerRun: 20,
       maxRuntimeMinutes: 480,
       backlogTarget: 8,

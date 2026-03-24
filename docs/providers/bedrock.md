@@ -69,7 +69,7 @@ Any model ID available in your AWS region and account can be used. Specify the f
 `bedrock` uses **single-file-json** execution via the `ConverseCommand` from `@aws-sdk/client-bedrock-runtime`. For each file being processed:
 
 1. Corydora reads the file content and builds a structured prompt.
-2. A `ConverseCommand` is sent with the prompt as a user message and `maxTokens: 4096`.
+2. A `ConverseCommand` is sent with the prompt as a user message and `maxTokens` taken from `runtime.maxOutputTokens` (default `8192`).
 3. The response `output.message.content` text is extracted and parsed as a JSON payload containing scan findings or fix instructions with `fileEdits`.
 4. If `fileEdits` are present, Corydora writes the replacement content to disk.
 
@@ -106,4 +106,4 @@ The model ID is not available in the configured region. Verify that the model is
 
 **Response did not include valid scan JSON**
 
-The response was received but Corydora could not parse a JSON object from the output. This can happen if the model returns a refusal or the response was truncated at `maxTokens`. Check the run logs for the raw response text.
+The response was received but Corydora could not parse a JSON object from the output. This can happen if the model returns a refusal or the response was truncated at the configured `runtime.maxOutputTokens` limit. Check the run logs for the raw response text.

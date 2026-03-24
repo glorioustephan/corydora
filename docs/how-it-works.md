@@ -138,6 +138,8 @@ Branch names follow the pattern `<branchPrefix>/<date>-<runId>` — for example 
 
 When `--background` is passed (or `execution.backgroundByDefault` is `true`), Corydora launches itself inside a new tmux session instead of running in the foreground.
 
+On macOS, if `execution.preventIdleSleep` is `true` and the built-in `caffeinate` command is available, Corydora wraps the background run in `caffeinate -i`. This prevents idle sleep so the tmux session keeps running while the display is allowed to sleep.
+
 The session is named `corydora-<project>-<timestamp>`. The foreground process exits immediately after the session is created, returning your terminal.
 
 Background session management:

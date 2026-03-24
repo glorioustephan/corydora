@@ -40,5 +40,6 @@ export async function runStatusCommand(projectRoot: string, json: boolean, ui: U
   ui.info(`Done tasks: ${payload.queue.done}`);
   if (runState.background?.sessionName) {
     ui.info(`tmux session: ${runState.background.sessionName}`);
+    ui.info(`Keep awake: ${runState.background.keepAwake ? 'enabled' : 'disabled'}`);
   }
 }

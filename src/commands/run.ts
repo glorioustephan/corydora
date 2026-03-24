@@ -56,7 +56,10 @@ export async function runRunCommand(options: RunCommandOptions, ui: Ui): Promise
     return;
   }
 
-  if (options.background && !options.foreground) {
+  const shouldBackground =
+    !options.foreground && (Boolean(options.background) || config.execution.backgroundByDefault);
+
+  if (shouldBackground) {
     if (!supportsTmux()) {
       throw new Error('tmux is unavailable. Use --foreground on this platform.');
     }
@@ -74,14 +77,22 @@ export async function runRunCommand(options: RunCommandOptions, ui: Ui): Promise
       ...(options.resume ? ['--resume'] : []),
       ...(options.dryRun ? ['--dry-run'] : []),
     ];
-    launchBackgroundRun(sessionName, args, options.projectRoot);
+    const backgroundLaunch = launchBackgroundRun(
+      sessionName,
+      args,
+      options.projectRoot,
+      config.execution.preventIdleSleep,
+    );
 
     if (options.json) {
-      ui.printJson({ background: true, sessionName });
+      ui.printJson({ background: true, sessionName, keepAwake: backgroundLaunch.keepAwake });
       return;
     }
 
     ui.success(`Started background run in tmux session "${sessionName}".`);
+    if (backgroundLaunch.keepAwake) {
+      ui.info('macOS idle sleep prevention is active for this session.');
+    }
     return;
   }
 
