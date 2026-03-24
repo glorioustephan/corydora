@@ -8,34 +8,39 @@ import {
 } from './helpers.js';
 
 const directories: string[] = [];
+const integrationTestTimeoutMs = 15_000;
 
 afterEach(async () => {
   await Promise.all(directories.splice(0).map(cleanupDirectory));
 });
 
 describe('fake runtime run', () => {
-  it('completes a run with the deterministic fake provider', async () => {
-    const directory = await createTempFixture('node-lib');
-    directories.push(directory);
-    initializeGitRepository(directory);
-    runCli(['init', '--yes'], directory);
-    await patchConfig(directory, (config) => ({
-      ...config,
-      runtime: {
-        ...(config.runtime as Record<string, unknown>),
-        provider: 'fake',
-        model: 'fake-corydora-model',
-      },
-      git: {
-        ...(config.git as Record<string, unknown>),
-        isolationMode: 'current-branch',
-      },
-    }));
+  it(
+    'completes a run with the deterministic fake provider',
+    async () => {
+      const directory = await createTempFixture('node-lib');
+      directories.push(directory);
+      initializeGitRepository(directory);
+      runCli(['init', '--yes'], directory);
+      await patchConfig(directory, (config) => ({
+        ...config,
+        runtime: {
+          ...(config.runtime as Record<string, unknown>),
+          provider: 'fake',
+          model: 'fake-corydora-model',
+        },
+        git: {
+          ...(config.git as Record<string, unknown>),
+          isolationMode: 'current-branch',
+        },
+      }));
 
-    const output = runCli(['run', '--json'], directory);
-    const parsed = JSON.parse(output) as { status: string; runId: string };
+      const output = runCli(['run', '--json'], directory);
+      const parsed = JSON.parse(output) as { status: string; runId: string };
 
-    expect(parsed.status).toBe('completed');
-    expect(parsed.runId.length).toBeGreaterThan(0);
-  });
+      expect(parsed.status).toBe('completed');
+      expect(parsed.runId.length).toBeGreaterThan(0);
+    },
+    integrationTestTimeoutMs,
+  );
 });

@@ -31,7 +31,6 @@
     "CHANGELOG.md",
     "logo.webp",
     "README.md",
-    "docs",
     "schemas"
   ],
   "scripts": {

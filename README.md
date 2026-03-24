@@ -8,7 +8,7 @@
 [![Docs](https://img.shields.io/badge/docs-vitepress-7c3aed.svg)](https://glorioustephan.github.io/corydora/)
 
 <p align="center">
-  <img src="./logo.png" alt="Corydora" width="320px" />
+  <img src="./logo.webp" alt="Corydora" width="320px" />
 </p>
 
 Corydora is a globally installable CLI for overnight AI-assisted codebase cleanup. It detects the
@@ -141,12 +141,15 @@ Before the first public release, configure npm trusted publishing for this repos
 
 1. Create the GitHub repository that will host Corydora.
 2. Confirm the `repository`, `homepage`, and `bugs` fields in `package.json` match the real repo.
-3. In npm package settings, add a trusted publisher for GitHub Actions with workflow filename
-   `publish.yml`.
-4. Optionally add a `RELEASE_PLEASE_TOKEN` GitHub secret if you want bot-created release PRs to
+3. If `corydora` does not exist on npm yet, publish it once manually from your user account so the
+   package page and settings exist.
+4. In npm package settings for `corydora`, add a trusted publisher for GitHub Actions with workflow
+   filename `publish.yml`.
+5. Optionally add a `RELEASE_PLEASE_TOKEN` GitHub secret if you want bot-created release PRs to
    trigger other workflows normally.
-5. Optionally protect the `npm` GitHub environment before enabling publish.
-6. Publish by merging the release PR that release-please opens against `main`.
+6. Optionally protect the `npm` GitHub environment before enabling publish.
+7. After trusted publishing is configured, publish future releases by merging the release PR that
+   release-please opens against `main`.
 
 Trusted publishing also requires GitHub-hosted runners, Node `22.14.0` or newer, and npm CLI
 `11.5.1` or newer. The publish workflow pins Node `24.14.0` and upgrades npm explicitly before it
