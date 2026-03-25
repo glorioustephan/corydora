@@ -1,9 +1,21 @@
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 const projectRoot = resolve(dirname(new URL(import.meta.url).pathname), '..');
+
+function createCliEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+
+  // Child CLI processes should behave like normal user invocations, not inherit
+  // debugger/auto-attach hooks from the Vitest parent process.
+  delete env.NODE_OPTIONS;
+  delete env.NODE_INSPECT_RESUME_ON_START;
+  delete env.VSCODE_INSPECTOR_OPTIONS;
+
+  return env;
+}
 
 export function corydoraCliPath(): string {
   return resolve(projectRoot, 'src/index.ts');
@@ -42,8 +54,42 @@ export function runCli(args: string[], cwd: string): string {
     {
       cwd,
       encoding: 'utf8',
+      env: createCliEnv(),
     },
   );
+}
+
+export interface CliRunResult {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+export function runCliCommand(args: string[], cwd: string): CliRunResult {
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--import',
+      resolve(projectRoot, 'node_modules', 'tsx', 'dist', 'loader.mjs'),
+      corydoraCliPath(),
+      ...args,
+    ],
+    {
+      cwd,
+      encoding: 'utf8',
+      env: createCliEnv(),
+    },
+  );
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  return {
+    status: result.status,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+  };
 }
 
 export async function patchConfig(
