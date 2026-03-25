@@ -8,9 +8,11 @@ This page documents every command and flag available in the `corydora` CLI. All 
 
 ## Global Options
 
-| Flag     | Description                                                                                        |
-| -------- | -------------------------------------------------------------------------------------------------- |
-| `--json` | Print machine-readable JSON output instead of formatted terminal output. Works with every command. |
+| Flag              | Description                                                                                        |
+| ----------------- | -------------------------------------------------------------------------------------------------- |
+| `--json`          | Print machine-readable JSON output instead of formatted terminal output. Works with every command. |
+| `-V`, `--version` | Print the installed Corydora version and exit.                                                     |
+| `-h`, `--help`    | Show command help, including subcommand usage, flags, arguments, and examples.                     |
 
 ---
 
@@ -28,6 +30,8 @@ The default action. Behavior depends on whether `.corydora.json` exists and whet
 
 ```sh
 corydora
+corydora --help
+corydora --version
 corydora --json
 ```
 
