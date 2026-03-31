@@ -2,6 +2,20 @@
 
 All notable changes to Corydora are documented in this file.
 
+## [0.3.0](https://github.com/glorioustephan/corydora/compare/corydora-v0.2.0...corydora-v0.3.0) (2026-03-31)
+
+
+### Features
+
+* **cli:** add --no-verify option to skip git commit hooks ([cd9efc3](https://github.com/glorioustephan/corydora/commit/cd9efc3cb7ce7c2168680c495e2638266cdb0a39))
+* **cli:** add --no-verify option to skip git commit hooks ([6fcb797](https://github.com/glorioustephan/corydora/commit/6fcb7977cd2ee2c35728d16ef4b93d7b269f46fc))
+* **cli:** add --no-verify option to skip git commit hooks ([8d27d31](https://github.com/glorioustephan/corydora/commit/8d27d31ec8f6e4639b4a5183912238741e34a51b))
+
+
+### Bug Fixes
+
+* **runtime:** avoid undefined optional flags in rebase conflict resolution ([97bf3e2](https://github.com/glorioustephan/corydora/commit/97bf3e26ff8e236d45cd8ef0a12a0dc4b8b967ba))
+
 ## [0.2.0](https://github.com/glorioustephan/corydora/compare/corydora-v0.1.0...corydora-v0.2.0) (2026-03-25)
 
 ### Features
