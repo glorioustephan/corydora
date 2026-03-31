@@ -24,7 +24,9 @@ function resolveRepoUrl() {
   const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
   const configuredFromPackage = packageJson.repository?.url?.trim();
   if (!configuredFromPackage) {
-    throw new Error('Unable to determine repo URL for release-please. Set RELEASE_PLEASE_REPO_URL.');
+    throw new Error(
+      'Unable to determine repo URL for release-please. Set RELEASE_PLEASE_REPO_URL.',
+    );
   }
 
   return normalizeRepoUrl(configuredFromPackage);
@@ -38,7 +40,8 @@ const token =
 
 if (!token) {
   console.error(
-    'Missing GitHub token. Set RELEASE_PLEASE_TOKEN (or GITHUB_TOKEN / GH_TOKEN) before running pnpm release:plan.',
+    'Missing GitHub token. Set RELEASE_PLEASE_TOKEN (or GITHUB_TOKEN / GH_TOKEN) before',
+    'running pnpm release:plan.',
   );
   process.exit(1);
 }

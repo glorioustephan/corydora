@@ -29,6 +29,144 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      - name: Setup pnpm
+        if: ${{ steps.release.outputs.release_created == 'true' || steps.release.outputs.prs_created == 'true' }}
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+
+      - name: Setup Node.js
+        if: ${{ steps.release.outputs.release_created == 'true' || steps.release.outputs.prs_created == 'true' }}
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.14.0
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        if: ${{ steps.release.outputs.release_created == 'true' || steps.release.outputs.prs_created == 'true' }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Format release-please changelog branch
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        env:
+          RELEASE_PLEASE_PR: ${{ toJSON(steps.release.outputs.pr) }}
+          RELEASE_PLEASE_PRS: ${{ toJSON(steps.release.outputs.prs) }}
+        run: |
+          set -euo pipefail
+          extract_branch() {
+            node --input-type=module <<'NODE'
+              import process from 'node:process';
+
+              function getHeadBranch(candidate) {
+                if (!candidate) {
+                  return '';
+                }
+
+                let parsed;
+                try {
+                  parsed = JSON.parse(candidate);
+                } catch {
+                  return '';
+                }
+
+                const fromEntry = (entry) =>
+                  (typeof entry?.headBranchName === 'string' &&
+                    entry.headBranchName) ||
+                  (typeof entry?.headRefName === 'string' &&
+                    entry.headRefName) ||
+                  '';
+
+                if (Array.isArray(parsed)) {
+                  for (const entry of parsed) {
+                    const branch = fromEntry(entry);
+                    if (branch) {
+                      return branch;
+                    }
+                  }
+                  return '';
+                }
+
+                return fromEntry(parsed);
+              }
+
+              const branch =
+                getHeadBranch(process.env.RELEASE_PLEASE_PR) ||
+                getHeadBranch(process.env.RELEASE_PLEASE_PRS);
+              if (branch) {
+                process.stdout.write(branch);
+              }
+            NODE
+          }
+
+          BRANCH_NAME=$(extract_branch)
+          if [ -z "$BRANCH_NAME" ]; then
+            BRANCH_NAME=$(node --input-type=module <<'NODE'
+              import { spawnSync } from 'node:child_process';
+              import process from 'node:process';
+
+              const repo = process.env.GITHUB_REPOSITORY;
+              if (!repo) {
+                process.exit(0);
+              }
+
+              const result = spawnSync('gh', [
+                'pr',
+                'list',
+                '--repo',
+                repo,
+                '--state',
+                'open',
+                '--json',
+                'title,headRefName',
+                '--limit',
+                '20',
+              ], { encoding: 'utf8' });
+
+              if (result.status !== 0 || !result.stdout) {
+                process.exit(0);
+              }
+
+              try {
+                const prs = JSON.parse(result.stdout);
+                const branch = prs.find((pr) =>
+                  typeof pr.headRefName === 'string' &&
+                  pr.headRefName.startsWith('release-please--')
+                )?.headRefName;
+
+                if (branch) {
+                  process.stdout.write(branch);
+                }
+              } catch {
+                process.exit(0);
+              }
+            NODE
+            )
+          fi
+
+          if [ -z "$BRANCH_NAME" ]; then
+            echo "Could not resolve release-please branch."
+            exit 0
+          fi
+
+          git fetch origin "$BRANCH_NAME"
+          if ! git show-ref --verify --quiet "refs/remotes/origin/$BRANCH_NAME"; then
+            echo "Release PR branch not found: $BRANCH_NAME"
+            exit 0
+          fi
+
+          git checkout -B "$BRANCH_NAME" "origin/$BRANCH_NAME"
+          pnpm exec prettier CHANGELOG.md scripts/release-plan.mjs --write
+
+          if ! git diff --quiet -- CHANGELOG.md scripts/release-plan.mjs; then
+            git add CHANGELOG.md scripts/release-plan.mjs
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: format generated changelog"
+            git push origin "HEAD:$BRANCH_NAME"
+          else
+            echo "Changelog already formatted."
+          fi
+
       - name: Checkout released ref
         if: ${{ steps.release.outputs.release_created }}
         uses: actions/checkout@v6
@@ -36,26 +174,13 @@ jobs:
           fetch-depth: 0
           ref: ${{ steps.release.outputs.tag_name }}
 
-      - name: Setup pnpm
+      - name: Install dependencies
         if: ${{ steps.release.outputs.release_created }}
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.32.1
-
-      - name: Setup Node.js
-        if: ${{ steps.release.outputs.release_created }}
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24.14.0
-          registry-url: https://registry.npmjs.org
+        run: pnpm install --frozen-lockfile
 
       - name: Upgrade npm for trusted publishing
         if: ${{ steps.release.outputs.release_created }}
         run: npm install --global npm@^11.5.1
-
-      - name: Install dependencies
-        if: ${{ steps.release.outputs.release_created }}
-        run: pnpm install --frozen-lockfile
 
       - name: Format release changelog
         if: ${{ steps.release.outputs.release_created }}
