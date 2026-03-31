@@ -69,25 +69,70 @@ corydora run --background
 fnm use
 # or: nvm use
 pnpm install
-pnpm lint
-pnpm format:check
-pnpm typecheck
-pnpm test
-pnpm build
+pnpm check
 pnpm pack:preview
 ```
 
-The main verification surface right now is:
+Use `pnpm` for local development and test execution. `npm` is used for publishing to the registry
+and is intentionally outside the normal inner-loop flow.
 
-- `pnpm lint`
-- `pnpm format:check`
-- `pnpm typecheck`
-- `pnpm test`
-- `pnpm build`
-- `pnpm pack:preview`
+The core development verification commands are:
 
-`pnpm check` runs the core verification steps and is also used by `prepublishOnly`. `pnpm
-pack:preview` produces the exact npm tarball shape that CI uploads as a workflow artifact.
+- `pnpm lint` - linting checks
+- `pnpm format:check` - Prettier checks
+- `pnpm typecheck` - TypeScript type checking
+- `pnpm test` - Unit + integration tests
+- `pnpm build` - `tsc` compile output to `dist/`
+- `pnpm pack:preview` - creates `artifacts/corydora-<version>.tgz` matching what CI uploads
+
+`pnpm check` is a shortcut for lint + format + typecheck + test + build. It is used both locally
+and by `pnpm prepublishOnly` in CI/release jobs.
+
+### Recommended flows
+
+#### 1) Daily dev loop
+
+1. Make changes on your branch.
+2. Commit with conventional commit format (`pnpm commit`).
+3. Validate before sharing:
+
+```bash
+pnpm check
+```
+
+4. Open a PR to `main`.
+
+#### 2) Release prep (changelog + version)
+
+After feature/fix PRs merge into `main`, generate or refresh the release pull request:
+
+```bash
+pnpm release:plan
+```
+
+This uses release-please to:
+
+- collect merged Conventional Commits
+- bump `package.json` version
+- update `CHANGELOG.md`
+
+Merge the release PR when ready.
+
+#### 3) Publish
+
+When the release PR is merged:
+
+- `publish.yml` runs `pnpm prepublishOnly` (same as `pnpm check`)
+- then publishes to npm.
+
+For local/manual verification of packaging:
+
+```bash
+pnpm release:publish
+```
+
+(`pnpm release:publish` runs `pnpm prepublishOnly && npm publish`; only use this when you
+understand it bypasses the GitHub release PR workflow.)
 
 ### Commit workflow
 
