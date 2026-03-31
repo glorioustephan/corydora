@@ -2,6 +2,14 @@
 
 All notable changes to Corydora are documented in this file.
 
+## [0.3.1](https://github.com/glorioustephan/corydora/compare/corydora-v0.3.0...corydora-v0.3.1) (2026-03-31)
+
+
+### Bug Fixes
+
+* **utils:** making the todo.md file the catch-all for unknown catgories ([87c89db](https://github.com/glorioustephan/corydora/commit/87c89dbf8b8276f27a993edb173676f15ba14176))
+* **utils:** making the todo.md file the catch-all for unknown catgories ([c304926](https://github.com/glorioustephan/corydora/commit/c30492667217bbec9e460fb50e45f931005cc638))
+
 ## [0.3.0](https://github.com/glorioustephan/corydora/compare/corydora-v0.2.0...corydora-v0.3.0) (2026-03-31)
 
 ### Features

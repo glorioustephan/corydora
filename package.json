@@ -1,6 +1,6 @@
 {
   "name": "corydora",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Provider-neutral overnight AI code scrubbing CLI.",
   "keywords": [
     "ai",
