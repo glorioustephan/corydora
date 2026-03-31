@@ -8,11 +8,57 @@ import type {
   ProviderAuthStatus,
   RuntimeProviderId,
   RuntimeProbe,
+  TaskCategory,
   ScanResult,
 } from '../types/domain.js';
 
+const normalizedCategoryMap: Record<string, TaskCategory> = {
+  accessibility: 'bugs',
+  architecture: 'todo',
+  audit: 'bugs',
+  complexity: 'performance',
+  correctness: 'bugs',
+  maintainability: 'todo',
+  performance: 'performance',
+  quality: 'todo',
+  refactor: 'todo',
+  refactoring: 'todo',
+  security: 'bugs',
+  stability: 'bugs',
+  test: 'tests',
+  testing: 'tests',
+  todo: 'todo',
+};
+
+function normalizeTaskCategory(rawCategory: unknown): TaskCategory {
+  if (typeof rawCategory !== 'string') {
+    return 'todo';
+  }
+
+  const normalized = rawCategory.trim().toLowerCase();
+  if (normalized.length === 0) {
+    return 'todo';
+  }
+
+  const direct = normalizedCategoryMap[normalized];
+  if (direct) {
+    return direct;
+  }
+
+  for (const [alias, mapped] of Object.entries(normalizedCategoryMap)) {
+    if (normalized.includes(alias) || alias.includes(normalized)) {
+      return mapped;
+    }
+  }
+
+  return 'todo';
+}
+
 const scanFindingSchema = z.object({
-  category: z.enum(['bugs', 'performance', 'tests', 'todo', 'features']),
+  category: z
+    .unknown()
+    .default('todo')
+    .transform((value) => normalizeTaskCategory(value)),
   title: z.string().min(1),
   file: z.string().min(1),
   rationale: z.string().min(1),
