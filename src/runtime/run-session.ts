@@ -33,6 +33,7 @@ export interface RunSessionOptions {
   sessionName?: string;
   forceCurrentBranch?: boolean;
   skipCommitHooks?: boolean;
+  logToConsole?: boolean;
 }
 
 type RunLogger = (message: string) => Promise<void>;
@@ -41,10 +42,12 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function createRunLogger(logFilePath: string): RunLogger {
+function createRunLogger(logFilePath: string, emitToConsole: boolean): RunLogger {
   return async (message: string): Promise<void> => {
     const line = `[${nowIso()}] ${message}\n`;
-    process.stdout.write(line);
+    if (emitToConsole) {
+      process.stdout.write(line);
+    }
     try {
       await appendFile(logFilePath, line, 'utf8');
     } catch {
@@ -280,6 +283,7 @@ export async function runCorydoraSession(options: RunSessionOptions): Promise<Ru
   const runId = existingRun?.runId ?? randomUUID().slice(0, 8);
   const logger = createRunLogger(
     resolve(options.projectRoot, options.config.paths.logsDir, `${runId}.log`),
+    options.logToConsole ?? true,
   );
   const isolation = prepareIsolationContext({
     projectRoot: options.projectRoot,

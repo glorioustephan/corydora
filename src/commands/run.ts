@@ -105,6 +105,7 @@ export async function runRunCommand(options: RunCommandOptions, ui: Ui): Promise
     agents,
     dryRun: Boolean(options.dryRun),
     resume: Boolean(options.resume),
+    logToConsole: !options.json,
     skipCommitHooks: Boolean(options.skipCommitHooks),
     ...(options.sessionName ? { sessionName: options.sessionName } : {}),
   });
