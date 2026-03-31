@@ -156,6 +156,11 @@ release-please derives the next version from Conventional Commits merged into `m
 - `feat:` => minor release
 - `feat!:` / `fix!:` / `BREAKING CHANGE:` => major release
 
+### Automated Release Commands
+
+- `pnpm release:plan` runs release-please to create/update the release PR, including `CHANGELOG.md` and version bump.
+- `pnpm release:publish` runs the full `prepublishOnly` pipeline (`lint`, `format`, `typecheck`, `test`, `build`) before attempting publish.
+
 ### Release Flow
 
 1. Make your change on a branch.

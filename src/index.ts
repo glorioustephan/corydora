@@ -181,7 +181,7 @@ const runCommand = program
         background: Boolean(commandOptions.background),
         foreground: Boolean(commandOptions.foreground),
         resume: Boolean(commandOptions.resume),
-        skipCommitHooks: commandOptions.verify === false,
+        skipCommitHooks: commandOptions.noVerify === false,
         sessionName:
           typeof commandOptions.sessionName === 'string' ? commandOptions.sessionName : undefined,
       },
