@@ -27,6 +27,17 @@ export function commitAllChanges(
     return false;
   }
 
+  const prettier = spawnSync('pnpm', ['exec', 'prettier', '.', '--write'], {
+    cwd,
+    encoding: 'utf8',
+  });
+  if (prettier.status !== 0) {
+    const details = [prettier.stdout?.trim(), prettier.stderr?.trim()].filter(Boolean).join('\n');
+    throw new Error(
+      `Prettier formatting failed before commit.${details.length > 0 ? ` ${details}` : ''}`,
+    );
+  }
+
   execFileSync('git', ['add', '-A'], { cwd, stdio: 'ignore' });
   const result = spawnSync('git', ['diff', '--cached', '--quiet'], { cwd, stdio: 'ignore' });
   if (result.status === 0) {
