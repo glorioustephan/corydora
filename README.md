@@ -106,6 +106,21 @@ pnpm check
 
 After feature/fix PRs merge into `main`, generate or refresh the release pull request:
 
+Set one of these tokens before running release planning:
+
+```bash
+export RELEASE_PLEASE_TOKEN=ghp_xxx
+# or:
+# export GITHUB_TOKEN=ghp_xxx
+# export GH_TOKEN=ghp_xxx
+```
+
+Optionally pin the repo explicitly:
+
+```bash
+export RELEASE_PLEASE_REPO_URL=https://github.com/glorioustephan/corydora
+```
+
 ```bash
 pnpm release:plan
 ```
@@ -115,6 +130,14 @@ This uses release-please to:
 - collect merged Conventional Commits
 - bump `package.json` version
 - update `CHANGELOG.md`
+
+`release:plan` also formats `CHANGELOG.md` after generation.
+
+If formatting or checks fail later, rerun:
+
+```bash
+pnpm release:check
+```
 
 Merge the release PR when ready.
 
@@ -190,8 +213,8 @@ Before the first public release, configure npm trusted publishing for this repos
    package page and settings exist.
 4. In npm package settings for `corydora`, add a trusted publisher for GitHub Actions with workflow
    filename `publish.yml`.
-5. Optionally add a `RELEASE_PLEASE_TOKEN` GitHub secret if you want bot-created release PRs to
-   trigger other workflows normally.
+5. Add `RELEASE_PLEASE_TOKEN` as a GitHub secret for `glorioustephan/corydora`; release planning and
+   local PR generation use this token and fall back to `GITHUB_TOKEN`/`GH_TOKEN`.
 6. Optionally protect the `npm` GitHub environment before enabling publish.
 7. After trusted publishing is configured, publish future releases by merging the release PR that
    release-please opens against `main`.
