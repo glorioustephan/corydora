@@ -18,7 +18,11 @@ export function ensureCleanWorktree(cwd: string): void {
   }
 }
 
-export function commitAllChanges(cwd: string, message: string): boolean {
+export function commitAllChanges(
+  cwd: string,
+  message: string,
+  options: { skipHooks?: boolean } = {},
+): boolean {
   if (!hasDirtyWorktree(cwd)) {
     return false;
   }
@@ -29,6 +33,11 @@ export function commitAllChanges(cwd: string, message: string): boolean {
     return false;
   }
 
-  execFileSync('git', ['commit', '-m', message], { cwd, stdio: 'ignore' });
+  const commitArgs = ['commit', '-m', message];
+  if (options.skipHooks) {
+    commitArgs.push('--no-verify');
+  }
+
+  execFileSync('git', commitArgs, { cwd, stdio: 'ignore' });
   return true;
 }
