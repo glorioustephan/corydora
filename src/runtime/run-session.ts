@@ -222,7 +222,7 @@ async function processSingleFix(options: {
         : commitAllChanges(
             options.workRoot,
             `corydora: ${claimedTask.category}: ${claimedTask.title.slice(0, 60)}`,
-            { skipHooks: options.skipCommitHooks },
+            options.skipCommitHooks ? { skipHooks: true } : {},
           );
 
     nextStore = updateTaskStatus(
@@ -408,7 +408,7 @@ export async function runCorydoraSession(options: RunSessionOptions): Promise<Ru
           state,
           store,
           logger,
-          skipCommitHooks: options.skipCommitHooks,
+          ...(options.skipCommitHooks ? { skipCommitHooks: true } : {}),
         });
         state = fixed.state;
         store = fixed.store;
