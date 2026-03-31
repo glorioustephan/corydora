@@ -2,6 +2,14 @@
 
 All notable changes to Corydora are documented in this file.
 
+## [0.3.2](https://github.com/glorioustephan/corydora/compare/corydora-v0.3.1...corydora-v0.3.2) (2026-03-31)
+
+
+### Bug Fixes
+
+* **repository.ts:** adding pre-commit formatting ([1c91029](https://github.com/glorioustephan/corydora/commit/1c91029eadbb699786c7202bc8665b010e90ecc4))
+* **repository.ts:** adding pre-commit formatting ([031e1ce](https://github.com/glorioustephan/corydora/commit/031e1ceec47f7c026efa9857ffa2e62a420574bd))
+
 ## [0.3.1](https://github.com/glorioustephan/corydora/compare/corydora-v0.3.0...corydora-v0.3.1) (2026-03-31)
 
 ### Bug Fixes
