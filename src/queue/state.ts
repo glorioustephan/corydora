@@ -89,7 +89,11 @@ export async function saveRunArtifact(
   config: CorydoraConfig,
   state: RunState,
 ): Promise<void> {
-  await writeFile(runArtifactPath(projectRoot, config, state.runId), `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+  await writeFile(
+    runArtifactPath(projectRoot, config, state.runId),
+    `${JSON.stringify(state, null, 2)}\n`,
+    'utf8',
+  );
 }
 
 export function mergeScanFindings(

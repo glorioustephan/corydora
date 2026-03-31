@@ -278,7 +278,9 @@ export async function runCorydoraSession(options: RunSessionOptions): Promise<Ru
     ? await loadRunState(options.projectRoot, options.config)
     : null;
   const runId = existingRun?.runId ?? randomUUID().slice(0, 8);
-  const logger = createRunLogger(resolve(options.projectRoot, options.config.paths.logsDir, `${runId}.log`));
+  const logger = createRunLogger(
+    resolve(options.projectRoot, options.config.paths.logsDir, `${runId}.log`),
+  );
   const isolation = prepareIsolationContext({
     projectRoot: options.projectRoot,
     config: options.config,
@@ -335,9 +337,11 @@ export async function runCorydoraSession(options: RunSessionOptions): Promise<Ru
   };
 
   await saveAllState(options.projectRoot, options.config, store, state);
-  await logger(`Run ${runId} prepared (isolation=${isolation.mode}, branch=${
-    isolation.branchName ?? 'current-branch'
-  }).`);
+  await logger(
+    `Run ${runId} prepared (isolation=${isolation.mode}, branch=${
+      isolation.branchName ?? 'current-branch'
+    }).`,
+  );
 
   const deadline = Date.now() + options.config.execution.maxRuntimeMinutes * 60_000;
 
@@ -365,7 +369,11 @@ export async function runCorydoraSession(options: RunSessionOptions): Promise<Ru
         updatedAt: nowIso(),
       };
 
-      const scanBatch = selectScanBatch(state.scheduler, latestFiles, options.config.scan.batchSize);
+      const scanBatch = selectScanBatch(
+        state.scheduler,
+        latestFiles,
+        options.config.scan.batchSize,
+      );
       if (scanBatch.length > 0) {
         await logger(`Scan batch selected (${scanBatch.length}): ${scanBatch.join(', ')}`);
         const processed = await processScans({
