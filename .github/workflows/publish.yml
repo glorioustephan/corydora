@@ -57,6 +57,10 @@ jobs:
         if: ${{ steps.release.outputs.release_created }}
         run: pnpm install --frozen-lockfile
 
+      - name: Format release changelog
+        if: ${{ steps.release.outputs.release_created }}
+        run: pnpm exec prettier CHANGELOG.md --write
+
       - name: Prepublish checks
         if: ${{ steps.release.outputs.release_created }}
         run: pnpm prepublishOnly
