@@ -169,6 +169,7 @@ const runCommand = program
   .option('--background', 'Launch in tmux when available', false)
   .option('--foreground', 'Force foreground mode', false)
   .option('--resume', 'Resume the last recorded run state', false)
+  .option('--no-verify', 'Skip git commit hooks while applying fixes', true)
   .option('--session-name <name>', 'Override the generated tmux session name (internal use)')
   .action(async (commandOptions) => {
     const ui = createUi(Boolean(program.opts().json));
@@ -180,6 +181,7 @@ const runCommand = program
         background: Boolean(commandOptions.background),
         foreground: Boolean(commandOptions.foreground),
         resume: Boolean(commandOptions.resume),
+        skipCommitHooks: commandOptions.verify === false,
         sessionName:
           typeof commandOptions.sessionName === 'string' ? commandOptions.sessionName : undefined,
       },

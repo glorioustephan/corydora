@@ -16,6 +16,7 @@ export interface RunCommandOptions {
   foreground?: boolean;
   resume?: boolean;
   sessionName?: string;
+  skipCommitHooks?: boolean;
 }
 
 export async function runRunCommand(options: RunCommandOptions, ui: Ui): Promise<void> {
@@ -76,6 +77,7 @@ export async function runRunCommand(options: RunCommandOptions, ui: Ui): Promise
       sessionName,
       ...(options.resume ? ['--resume'] : []),
       ...(options.dryRun ? ['--dry-run'] : []),
+      ...(options.skipCommitHooks ? ['--no-verify'] : []),
     ];
     const backgroundLaunch = launchBackgroundRun(
       sessionName,
@@ -103,6 +105,7 @@ export async function runRunCommand(options: RunCommandOptions, ui: Ui): Promise
     agents,
     dryRun: Boolean(options.dryRun),
     resume: Boolean(options.resume),
+    skipCommitHooks: Boolean(options.skipCommitHooks),
     ...(options.sessionName ? { sessionName: options.sessionName } : {}),
   });
 

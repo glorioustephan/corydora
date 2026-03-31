@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { appendFile, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
@@ -13,6 +13,7 @@ import {
   loadRunState,
   loadTaskStore,
   mergeScanFindings,
+  saveRunArtifact,
   saveRunState,
   saveTaskStore,
   claimNextTask,
@@ -31,10 +32,25 @@ export interface RunSessionOptions {
   resume: boolean;
   sessionName?: string;
   forceCurrentBranch?: boolean;
+  skipCommitHooks?: boolean;
 }
+
+type RunLogger = (message: string) => Promise<void>;
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function createRunLogger(logFilePath: string): RunLogger {
+  return async (message: string): Promise<void> => {
+    const line = `[${nowIso()}] ${message}\n`;
+    process.stdout.write(line);
+    try {
+      await appendFile(logFilePath, line, 'utf8');
+    } catch {
+      // Ignore logging errors to keep runtime execution unchanged.
+    }
+  };
 }
 
 async function readFileIfExists(path: string): Promise<string> {
@@ -54,6 +70,7 @@ async function saveAllState(
   await saveTaskStore(projectRoot, config, store);
   await renderTaskQueues(projectRoot, config, store);
   await saveRunState(projectRoot, config, state);
+  await saveRunArtifact(projectRoot, config, state);
 }
 
 async function processScans(options: {
@@ -64,6 +81,7 @@ async function processScans(options: {
   agents: AgentDefinition[];
   state: RunState;
   store: TaskStore;
+  logger: RunLogger;
 }): Promise<{ state: RunState; store: TaskStore }> {
   const adapter = getRuntimeAdapter(options.config.runtime.provider);
   const fingerprint = detectProjectFingerprint(options.workRoot);
@@ -71,11 +89,14 @@ async function processScans(options: {
   let nextState = options.state;
   let nextStore = options.store;
 
+  await options.logger(`Scanning ${options.files.length} files.`);
+
   const concurrency = Math.max(1, options.config.scan.maxConcurrentScans);
   for (let index = 0; index < options.files.length; index += concurrency) {
     const slice = options.files.slice(index, index + concurrency);
     const results = await Promise.all(
       slice.map(async (file) => {
+        await options.logger(`Starting scan: ${file}`);
         const fileContent = await readFile(resolve(options.workRoot, file), 'utf8');
         const prompt = buildScanPrompt({
           filePath: file,
@@ -116,6 +137,9 @@ async function processScans(options: {
       if (item.success) {
         const merged = mergeScanFindings(nextStore, item.result.tasks);
         nextStore = merged.store;
+        await options.logger(
+          `Scan complete: ${item.file} (${item.result.tasks.length} raw, ${merged.added.length} new tasks).`,
+        );
         nextState = {
           ...nextState,
           scheduler: noteFileProcessed(nextState.scheduler, item.file, true),
@@ -123,6 +147,7 @@ async function processScans(options: {
           selectedFiles: [...new Set([...nextState.selectedFiles, item.file])],
         };
       } else {
+        await options.logger(`Scan failed: ${item.file} -> ${item.result}`);
         nextState = {
           ...nextState,
           scheduler: noteFileProcessed(nextState.scheduler, item.file, false),
@@ -145,6 +170,8 @@ async function processSingleFix(options: {
   config: CorydoraConfig;
   state: RunState;
   store: TaskStore;
+  logger: RunLogger;
+  skipCommitHooks?: boolean;
 }): Promise<{ state: RunState; store: TaskStore; fixedTaskId?: string }> {
   const adapter = getRuntimeAdapter(options.config.runtime.provider);
   const claimedTask = claimNextTask(
@@ -163,6 +190,7 @@ async function processSingleFix(options: {
     phase: 'fix' as const,
     updatedAt: nowIso(),
   };
+  await options.logger(`Fix started: ${claimedTask.id} ${claimedTask.title}`);
 
   await saveAllState(options.projectRoot, options.config, nextStore, nextState);
 
@@ -194,6 +222,7 @@ async function processSingleFix(options: {
         : commitAllChanges(
             options.workRoot,
             `corydora: ${claimedTask.category}: ${claimedTask.title.slice(0, 60)}`,
+            { skipHooks: options.skipCommitHooks },
           );
 
     nextStore = updateTaskStatus(
@@ -215,6 +244,9 @@ async function processSingleFix(options: {
       fixedTaskId: claimedTask.id,
     };
   } catch (error) {
+    await options.logger(
+      `Fix failed: ${claimedTask.id} ${error instanceof Error ? error.message : String(error)}`,
+    );
     nextStore = updateTaskStatus(
       nextStore,
       claimedTask.id,
@@ -246,6 +278,7 @@ export async function runCorydoraSession(options: RunSessionOptions): Promise<Ru
     ? await loadRunState(options.projectRoot, options.config)
     : null;
   const runId = existingRun?.runId ?? randomUUID().slice(0, 8);
+  const logger = createRunLogger(resolve(options.projectRoot, options.config.paths.logsDir, `${runId}.log`));
   const isolation = prepareIsolationContext({
     projectRoot: options.projectRoot,
     config: options.config,
@@ -302,83 +335,111 @@ export async function runCorydoraSession(options: RunSessionOptions): Promise<Ru
   };
 
   await saveAllState(options.projectRoot, options.config, store, state);
+  await logger(`Run ${runId} prepared (isolation=${isolation.mode}, branch=${
+    isolation.branchName ?? 'current-branch'
+  }).`);
 
   const deadline = Date.now() + options.config.execution.maxRuntimeMinutes * 60_000;
 
-  while (Date.now() < deadline) {
-    if (await shouldStop(options.projectRoot, options.config)) {
+  try {
+    while (Date.now() < deadline) {
+      if (await shouldStop(options.projectRoot, options.config)) {
+        state = {
+          ...state,
+          status: 'stopped',
+          phase: 'idle',
+          finishedAt: nowIso(),
+          updatedAt: nowIso(),
+        };
+        await logger('Stop requested. Finishing with stopped status.');
+        break;
+      }
+
+      const latestFiles = discoverCandidateFiles(isolation.workRoot, {
+        includeExtensions: options.config.scan.includeExtensions,
+        excludeDirectories: options.config.scan.excludeDirectories,
+      });
       state = {
         ...state,
-        status: 'stopped',
+        scheduler: restoreSchedulerState(state.scheduler, latestFiles),
+        updatedAt: nowIso(),
+      };
+
+      const scanBatch = selectScanBatch(state.scheduler, latestFiles, options.config.scan.batchSize);
+      if (scanBatch.length > 0) {
+        await logger(`Scan batch selected (${scanBatch.length}): ${scanBatch.join(', ')}`);
+        const processed = await processScans({
+          files: scanBatch,
+          projectRoot: options.projectRoot,
+          workRoot: isolation.workRoot,
+          config: options.config,
+          agents: options.agents,
+          state,
+          store,
+          logger,
+        });
+        state = {
+          ...processed.state,
+          phase: 'scan',
+        };
+        store = processed.store;
+        await saveAllState(options.projectRoot, options.config, store, state);
+      }
+
+      const pendingCount = countTasksByStatus(store, 'pending');
+      const noRemainingFiles = scanBatch.length === 0;
+      const shouldFix =
+        pendingCount >= options.config.execution.backlogTarget ||
+        (noRemainingFiles && pendingCount > 0);
+
+      if (shouldFix && state.completedFixCount < options.config.execution.maxFixesPerRun) {
+        const fixed = await processSingleFix({
+          projectRoot: options.projectRoot,
+          workRoot: isolation.workRoot,
+          config: options.config,
+          state,
+          store,
+          logger,
+          skipCommitHooks: options.skipCommitHooks,
+        });
+        state = fixed.state;
+        store = fixed.store;
+        if (fixed.fixedTaskId) {
+          await logger(`Fix attempted for task ${fixed.fixedTaskId}.`);
+        }
+        await saveAllState(options.projectRoot, options.config, store, state);
+      }
+
+      const exhaustedFiles = selectScanBatch(state.scheduler, latestFiles, 1).length === 0;
+      const exhaustedTasks = countTasksByStatus(store, 'pending') === 0;
+      if (exhaustedFiles && exhaustedTasks) {
+        await logger('All scan and task queues are empty. Finishing.');
+        break;
+      }
+    }
+
+    if (state.status === 'running') {
+      state = {
+        ...state,
+        status: 'completed',
+        phase: 'idle',
         finishedAt: nowIso(),
         updatedAt: nowIso(),
       };
-      await saveAllState(options.projectRoot, options.config, store, state);
-      return state;
+      await logger('Run completed.');
     }
-
-    const latestFiles = discoverCandidateFiles(isolation.workRoot, {
-      includeExtensions: options.config.scan.includeExtensions,
-      excludeDirectories: options.config.scan.excludeDirectories,
-    });
+  } catch (error) {
     state = {
       ...state,
-      scheduler: restoreSchedulerState(state.scheduler, latestFiles),
+      status: 'failed',
+      phase: 'idle',
+      finishedAt: nowIso(),
       updatedAt: nowIso(),
     };
-
-    const scanBatch = selectScanBatch(state.scheduler, latestFiles, options.config.scan.batchSize);
-    if (scanBatch.length > 0) {
-      const processed = await processScans({
-        files: scanBatch,
-        projectRoot: options.projectRoot,
-        workRoot: isolation.workRoot,
-        config: options.config,
-        agents: options.agents,
-        state,
-        store,
-      });
-      state = {
-        ...processed.state,
-        phase: 'scan',
-      };
-      store = processed.store;
-      await saveAllState(options.projectRoot, options.config, store, state);
-    }
-
-    const pendingCount = countTasksByStatus(store, 'pending');
-    const noRemainingFiles = scanBatch.length === 0;
-    const shouldFix =
-      pendingCount >= options.config.execution.backlogTarget ||
-      (noRemainingFiles && pendingCount > 0);
-
-    if (shouldFix && state.completedFixCount < options.config.execution.maxFixesPerRun) {
-      const fixed = await processSingleFix({
-        projectRoot: options.projectRoot,
-        workRoot: isolation.workRoot,
-        config: options.config,
-        state,
-        store,
-      });
-      state = fixed.state;
-      store = fixed.store;
-      await saveAllState(options.projectRoot, options.config, store, state);
-    }
-
-    const exhaustedFiles = selectScanBatch(state.scheduler, latestFiles, 1).length === 0;
-    const exhaustedTasks = countTasksByStatus(store, 'pending') === 0;
-    if (exhaustedFiles && exhaustedTasks) {
-      break;
-    }
+    await logger(`Run failed: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    await saveAllState(options.projectRoot, options.config, store, state);
   }
 
-  state = {
-    ...state,
-    status: 'completed',
-    phase: 'idle',
-    finishedAt: nowIso(),
-    updatedAt: nowIso(),
-  };
-  await saveAllState(options.projectRoot, options.config, store, state);
   return state;
 }

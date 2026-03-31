@@ -80,6 +80,18 @@ export async function saveRunState(
   await writeFile(runStatePath(projectRoot, config), `${JSON.stringify(state, null, 2)}\n`, 'utf8');
 }
 
+function runArtifactPath(projectRoot: string, config: CorydoraConfig, runId: string): string {
+  return resolve(projectRoot, config.paths.runsDir, `${runId}.json`);
+}
+
+export async function saveRunArtifact(
+  projectRoot: string,
+  config: CorydoraConfig,
+  state: RunState,
+): Promise<void> {
+  await writeFile(runArtifactPath(projectRoot, config, state.runId), `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+}
+
 export function mergeScanFindings(
   store: TaskStore,
   findings: ScanFinding[],
