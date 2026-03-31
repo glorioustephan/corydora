@@ -2,6 +2,13 @@
 
 All notable changes to Corydora are documented in this file.
 
+## [0.3.4](https://github.com/glorioustephan/corydora/compare/corydora-v0.3.3...corydora-v0.3.4) (2026-03-31)
+
+
+### Bug Fixes
+
+* **release-please:** updating process for release-please and use of token ([#11](https://github.com/glorioustephan/corydora/issues/11)) ([f994a9a](https://github.com/glorioustephan/corydora/commit/f994a9a49ea5722270e859ffd265bbd8196ec55e))
+
 ## [0.3.3](https://github.com/glorioustephan/corydora/compare/corydora-v0.3.2...corydora-v0.3.3) (2026-03-31)
 
 
