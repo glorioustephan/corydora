@@ -6,7 +6,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/corydora.svg)](https://www.npmjs.com/package/corydora)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Docs](https://img.shields.io/badge/docs-vitepress-7c3aed.svg)](https://glorioustephan.github.io/corydora/)
-
+[![Socket Badge](https://badge.socket.dev/npm/package/corydora/0.4.0)](https://badge.socket.dev/npm/package/corydora/0.4.0)
 <p align="center">
   <img src="./logo.webp" alt="Corydora" width="320px" />
 </p>
