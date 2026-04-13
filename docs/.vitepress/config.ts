@@ -2,13 +2,19 @@ import { defineConfig } from 'vitepress';
 
 export default defineConfig({
   title: 'Corydora',
-  description: 'Provider-neutral overnight AI code scrubbing CLI',
+  description: 'Mode-based AI code cleanup CLI for reviewable overnight maintenance runs.',
   base: '/corydora/',
 
   head: [
     ['link', { rel: 'icon', type: 'image/png', href: '/corydora/logo.png' }],
     ['meta', { property: 'og:title', content: 'Corydora' }],
-    ['meta', { property: 'og:description', content: 'Cleaning Your Code While You Sleep' }],
+    [
+      'meta',
+      {
+        property: 'og:description',
+        content: 'Run focused cleanup, refactoring, linting, and documentation passes overnight.',
+      },
+    ],
     ['meta', { property: 'og:image', content: '/corydora/logo.png' }],
   ],
 

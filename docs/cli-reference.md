@@ -1,47 +1,35 @@
 ---
 title: CLI Reference
+description: Command and flag reference for the Corydora CLI.
 ---
 
 # CLI Reference
 
-This page documents every command and flag available in the `corydora` CLI. All commands accept a global `--json` flag for scripted and CI use.
+This page documents the public CLI surface for `corydora`. Every command also accepts the global `--json` flag if you want structured output for scripts or automation.
 
 ## Global Options
 
-| Flag              | Description                                                                                        |
-| ----------------- | -------------------------------------------------------------------------------------------------- |
-| `--json`          | Print machine-readable JSON output instead of formatted terminal output. Works with every command. |
-| `-V`, `--version` | Print the installed Corydora version and exit.                                                     |
-| `-h`, `--help`    | Show command help, including subcommand usage, flags, arguments, and examples.                     |
-
----
+| Flag              | Description                                                             |
+| ----------------- | ----------------------------------------------------------------------- |
+| `--json`          | Print machine-readable JSON output instead of formatted terminal output |
+| `-V`, `--version` | Print the installed Corydora version and exit                           |
+| `-h`, `--help`    | Show command help                                                       |
 
 ## `corydora`
 
-The default action. Behavior depends on whether `.corydora.json` exists and whether a TTY is attached.
+The top-level command is context-aware:
 
-| Condition                   | Behavior                                           |
-| --------------------------- | -------------------------------------------------- |
-| No `.corydora.json` present | Runs `corydora init`                               |
-| Config exists, TTY attached | Shows interactive menu (run, status, doctor, init) |
-| Config exists, no TTY       | Runs `corydora status`                             |
-
-**Usage**
-
-```sh
-corydora
-corydora --help
-corydora --version
-corydora --json
-```
-
----
+| Condition                   | Behavior                   |
+| --------------------------- | -------------------------- |
+| No `.corydora.json` present | Runs `corydora init`       |
+| Config exists, TTY attached | Shows the interactive menu |
+| Config exists, no TTY       | Runs `corydora status`     |
 
 ## `corydora init`
 
-Scaffolds a new Corydora project. Creates `.corydora.json`, the `.corydora/` working directory, markdown queue files for each task category, and a `.corydora/.env.local` template for local secrets.
+Creates `.corydora.json` and the `.corydora/` working directory for the current repository.
 
-In interactive mode, `init` probes available runtimes, detects the project's tech stack, and prompts you to confirm or override each setting. Pass `--yes` to skip all prompts and accept the detected defaults.
+Use `--yes` to accept detected defaults without prompts.
 
 **Flags**
 
@@ -49,20 +37,15 @@ In interactive mode, `init` probes available runtimes, detects the project's tec
 | ------- | ---------------------------------------------- |
 | `--yes` | Accept all detected defaults without prompting |
 
-**Usage**
+**Examples**
 
 ```sh
-# Interactive
 corydora init
-
-# Accept defaults (useful in CI or bootstrapping scripts)
 corydora init --yes
-
-# Output created config as JSON
 corydora init --yes --json
 ```
 
-**JSON output shape**
+**JSON output**
 
 ```json
 {
@@ -72,66 +55,61 @@ corydora init --yes --json
   "isolationMode": "worktree",
   "fingerprint": {
     "packageManager": "pnpm",
-    "frameworks": ["next"],
+    "frameworks": ["nextjs"],
     "techLenses": ["typescript", "react", "nextjs"]
   }
 }
 ```
 
----
-
 ## `corydora run`
 
-Starts the scan-and-fix loop. Corydora discovers candidate files, dispatches them to the configured agents in batches, and applies fixes as tasks are confirmed.
-
-By default the run executes in the foreground. Pass `--background` to launch it inside a detached tmux session.
+Starts a run for the current project. `run` is the command you will use most often.
 
 **Flags**
 
-| Flag                    | Description                                                                                              |
-| ----------------------- | -------------------------------------------------------------------------------------------------------- |
-| `--dry-run`             | Preview the next scan batch and pending task without executing any provider actions                      |
-| `--background`          | Launch the run in a detached tmux session. Requires tmux to be installed                                 |
-| `--foreground`          | Force foreground execution even when `execution.backgroundByDefault` is `true` in config                 |
-| `--resume`              | Resume from the last recorded run state instead of starting fresh                                        |
-| `--session-name <name>` | Override the generated tmux session name (used internally when `--background` re-invokes `--foreground`) |
+| Flag                    | Description                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| `--dry-run`             | Show the next analysis batch and selected agents without making provider calls |
+| `--background`          | Launch the run in a detached tmux session                                      |
+| `--foreground`          | Force foreground execution even when background mode is enabled by default     |
+| `--resume`              | Resume the last recorded run                                                   |
+| `--mode <mode>`         | Override the configured default mode for this run                              |
+| `--agent <ids>`         | Override the selected agent IDs for this run with a comma-separated list       |
+| `--no-verify`           | Skip git commit hooks while applying fixes                                     |
+| `--session-name <name>` | Override the generated tmux session name                                       |
 
-**Usage**
+**Modes**
+
+`auto`, `churn`, `clean`, `refactor`, `performance`, `linting`, `documentation`
+
+**Examples**
 
 ```sh
-# Standard foreground run
 corydora run
-
-# Preview without making changes
 corydora run --dry-run
-
-# Run overnight in a tmux session
 corydora run --background
-
-# Resume a previously interrupted run
 corydora run --resume
-
-# Foreground even when backgroundByDefault is true
+corydora run --mode churn
+corydora run --mode refactor --agent refactoring-engineer
 corydora run --foreground
 ```
 
-**Dry-run JSON output shape**
+**Dry-run JSON output**
 
 ```json
 {
   "dryRun": true,
   "provider": "claude-cli",
   "model": "sonnet",
+  "mode": "churn",
+  "selectedAgents": ["refactoring-engineer", "bug-investigator"],
   "nextScanBatch": ["src/lib/parser.ts", "src/lib/formatter.ts"],
-  "nextTask": {
-    "title": "Fix null reference in getUserById",
-    "status": "pending",
-    "risk": "narrow"
-  }
+  "nextAnalysisBatch": ["src/lib/parser.ts", "src/lib/formatter.ts"],
+  "nextTask": "Remove duplicate parsing branch in parser.ts"
 }
 ```
 
-**Background JSON output shape**
+**Background JSON output**
 
 ```json
 {
@@ -141,78 +119,90 @@ corydora run --foreground
 }
 ```
 
-> `--background` requires tmux. If tmux is unavailable, the command exits with an error suggesting `--foreground`.
-> On macOS, `keepAwake` is `true` when Corydora was able to wrap the background run with `caffeinate -i`.
-
----
+`--background` requires tmux. On macOS, Corydora also reports whether it enabled keep-awake support for the session.
 
 ## `corydora status`
 
-Shows the current or most recent run state: phase, run ID, overall status, and task queue counts. Also reports whether a live tmux session is attached to this project.
+Shows the current or most recent run, including worker activity and queue counts.
 
-**Usage**
+**Examples**
 
 ```sh
 corydora status
 corydora status --json
 ```
 
-**JSON output shape**
+**JSON output**
 
 ```json
 {
   "runState": {
     "runId": "run-1711234567890",
     "status": "running",
-    "phase": "fixing",
+    "phase": "fix",
     "provider": "claude-cli",
     "isolationMode": "worktree",
+    "effectiveIsolationMode": "branch",
+    "mode": "auto",
+    "selectedAgentIds": ["bug-investigator", "refactoring-engineer"],
     "branchName": "corydora/run-1711234567890",
-    "worktreePath": ".corydora/worktrees/run-1711234567890",
+    "workers": [
+      {
+        "id": "analyze-1",
+        "kind": "analyze",
+        "status": "running",
+        "details": "src/lib/parser.ts"
+      }
+    ],
     "background": {
       "sessionName": "corydora-my-project-123456",
       "keepAwake": true
     }
   },
   "queue": {
-    "pending": 4,
-    "claimed": 1,
+    "queued": 4,
+    "leased": 1,
+    "applying": 1,
+    "validating": 0,
     "done": 12,
-    "failed": 0,
-    "blocked": 1
+    "deferred": 2,
+    "blocked": 1,
+    "manual": 0
   },
+  "files": {
+    "queued": 18,
+    "leased": 1,
+    "analyzed": 42,
+    "deferred": 0,
+    "manual": 0
+  },
+  "nextRetry": ["task_abc123 @ 2026-04-12T08:30:00.000Z"],
   "tmuxAttached": true
 }
 ```
 
----
-
 ## `corydora attach`
 
-Attaches your terminal to the tmux session of a running background Corydora run. The session name is read from the recorded run state — no arguments needed.
+Attaches your terminal to the tmux session for the active background run.
 
-**Usage**
+**Example**
 
 ```sh
 corydora attach
 ```
 
-> Exits with an error if no tmux-backed session is recorded, or if the session has already exited.
-
----
-
 ## `corydora stop`
 
-Requests a graceful stop of an active background run. Sets `stopRequested` in the run state file so the session loop exits cleanly at its next checkpoint, then kills the tmux session.
+Requests a graceful stop for the active run. If the run is using tmux, Corydora also stops the tmux session.
 
-**Usage**
+**Examples**
 
 ```sh
 corydora stop
 corydora stop --json
 ```
 
-**JSON output shape**
+**JSON output**
 
 ```json
 {
@@ -221,13 +211,11 @@ corydora stop --json
 }
 ```
 
----
-
 ## `corydora doctor`
 
-Reports the availability and authentication status of every provider, tmux support, and detected project characteristics. Useful for diagnosing setup issues before running.
+Checks local prerequisites and runtime readiness.
 
-**Usage**
+**Examples**
 
 ```sh
 corydora doctor
@@ -238,23 +226,25 @@ corydora doctor --json
 
 ```
 Package manager: pnpm
-Frameworks: next
+Frameworks: nextjs
 tmux available: yes
-claude-cli: installed=true auth=authenticated (claude binary found)
-anthropic-api: installed=true auth=unauthenticated (ANTHROPIC_API_KEY not set)
-openai-api: installed=true auth=unauthenticated (OPENAI_API_KEY not set)
-gemini-cli: installed=false auth=unauthenticated (gemini binary not found)
-bedrock: installed=true auth=unauthenticated (AWS credentials not configured)
-ollama: installed=false auth=unauthenticated (OLLAMA_HOST not reachable)
+background keep-awake available: yes
+claude-cli: installed=true auth=ready (claude binary found)
+anthropic-api: installed=true auth=missing (ANTHROPIC_API_KEY not set)
+openai-api: installed=true auth=missing (OPENAI_API_KEY not set)
+Configured mode: auto
+Fix route: claude-cli (sonnet)
+Isolation compatibility: worktree -> branch
+Validation command: pnpm run typecheck
 ```
 
-**JSON output shape**
+**JSON output**
 
 ```json
 {
   "fingerprint": {
     "packageManager": "pnpm",
-    "frameworks": ["next"],
+    "frameworks": ["nextjs"],
     "techLenses": ["typescript", "react", "nextjs"]
   },
   "tmuxAvailable": true,
@@ -265,69 +255,55 @@ ollama: installed=false auth=unauthenticated (OLLAMA_HOST not reachable)
       "label": "Claude CLI",
       "installed": true,
       "recommended": true,
-      "auth": { "status": "authenticated", "message": "claude binary found" },
+      "auth": { "status": "ready", "message": "claude binary found" },
       "models": ["sonnet", "haiku", "opus"]
     }
   ],
   "checks": [
     {
       "provider": "claude-cli",
-      "checks": [{ "name": "binary", "ok": true, "message": "claude binary found" }]
+      "checks": [{ "id": "binary", "ok": true, "message": "claude binary found" }]
     }
-  ]
+  ],
+  "config": {
+    "mode": "auto",
+    "fixProvider": "claude-cli",
+    "effectiveIsolationMode": "branch",
+    "validationCommand": "pnpm run typecheck",
+    "lintPrerequisite": null
+  }
 }
 ```
 
----
-
 ## `corydora agents list`
 
-Lists all active agents — both builtin and any imported agents loaded from the configured `importedAgentDirectory`. Displays each agent's ID, source, categories, tech lenses, and description.
+Lists builtin agents and any imported agents available to the current project.
 
-If `.corydora.json` does not exist, falls back to listing all builtin agents.
-
-**Usage**
+**Examples**
 
 ```sh
 corydora agents list
 corydora agents list --json
 ```
 
-**Example terminal output**
-
-```
-bug-investigator [builtin] -> Find correctness bugs and concrete failure paths in one file at a time.
-performance-engineer [builtin] -> Find unnecessary renders, repeated work, and heavy I/O hot spots.
-test-hardener [builtin] -> Identify missing tests, flaky patterns, and weak validation.
-todo-triager [builtin] -> Turns comments, skipped code paths, and deferred work into concrete tasks.
-feature-scout [builtin] -> Identifies small feature opportunities that fit the existing architecture.
-security-auditor [builtin] -> Looks for frontend and backend security issues with concrete exploit paths.
-database-reviewer [builtin] -> Finds risky queries, schema drift issues, and performance bottlenecks around data access.
-refactoring-engineer [builtin] -> Finds low-risk structural cleanups that make future work easier.
-```
-
----
-
 ## `corydora agents import <dir>`
 
-Imports external agent definitions from a directory of markdown files. Each markdown file must include YAML frontmatter declaring the agent's `id`, `label`, `categories`, `techLenses`, and `prompt`.
-
-Imported agent metadata is stored in `.corydora/agents/imported-agents.json` and merged into the active agent catalog at run time.
+Imports markdown-based agent definitions from a directory.
 
 **Arguments**
 
-| Argument | Description                                           |
-| -------- | ----------------------------------------------------- |
-| `<dir>`  | Path to the directory containing agent markdown files |
+| Argument | Description                                     |
+| -------- | ----------------------------------------------- |
+| `<dir>`  | Directory containing markdown agent definitions |
 
-**Usage**
+**Examples**
 
 ```sh
 corydora agents import ./my-agents
 corydora agents import ./my-agents --json
 ```
 
-**JSON output shape**
+**JSON output**
 
 ```json
 [
@@ -342,24 +318,22 @@ corydora agents import ./my-agents --json
 ]
 ```
 
----
-
 ## `corydora config validate`
 
-Validates `.corydora.json` against the Zod schema and the published JSON schema at `schemas/corydora.schema.json`. Exits with a non-zero status code and prints each validation error if the config is invalid.
+Validates `.corydora.json`.
 
-**Usage**
+**Examples**
 
 ```sh
 corydora config validate
 corydora config validate --json
 ```
 
-**JSON output shape (valid config)**
+**JSON output**
 
 ```json
 {
   "ok": true,
-  "config": { "version": 1, "git": { "..." } }
+  "config": { "version": 1, "git": { "...": "..." } }
 }
 ```

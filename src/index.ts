@@ -12,6 +12,7 @@ import { runInitCommand } from './commands/init.js';
 import { runRunCommand } from './commands/run.js';
 import { runStatusCommand } from './commands/status.js';
 import { runStopCommand } from './commands/stop.js';
+import { CORYDORA_MODES } from './constants.js';
 import { selectMainAction } from './ui/menu.js';
 import { createUi } from './ui/output.js';
 
@@ -169,6 +170,14 @@ const runCommand = program
   .option('--background', 'Launch in tmux when available', false)
   .option('--foreground', 'Force foreground mode', false)
   .option('--resume', 'Resume the last recorded run state', false)
+  .option('--mode <mode>', 'Execution focus mode', (value: string) => {
+    if (!CORYDORA_MODES.includes(value as (typeof CORYDORA_MODES)[number])) {
+      throw new Error(`Unsupported mode "${value}".`);
+    }
+
+    return value;
+  })
+  .option('--agent <ids>', 'Comma-separated agent IDs to run')
   .option('--no-verify', 'Skip git commit hooks while applying fixes', true)
   .option('--session-name <name>', 'Override the generated tmux session name (internal use)')
   .action(async (commandOptions) => {
@@ -181,6 +190,14 @@ const runCommand = program
         background: Boolean(commandOptions.background),
         foreground: Boolean(commandOptions.foreground),
         resume: Boolean(commandOptions.resume),
+        mode: typeof commandOptions.mode === 'string' ? commandOptions.mode : undefined,
+        agentIds:
+          typeof commandOptions.agent === 'string'
+            ? commandOptions.agent
+                .split(',')
+                .map((value: string) => value.trim())
+                .filter(Boolean)
+            : undefined,
         skipCommitHooks: commandOptions.noVerify === false,
         sessionName:
           typeof commandOptions.sessionName === 'string' ? commandOptions.sessionName : undefined,
@@ -197,6 +214,8 @@ addHelpSections(runCommand, [
       '$ corydora run --dry-run',
       '$ corydora run --background',
       '$ corydora run --resume',
+      '$ corydora run --mode churn',
+      '$ corydora run --mode refactor --agent refactoring-engineer',
     ],
   },
 ]);

@@ -39,6 +39,10 @@ export class FakeRuntimeAdapter implements RuntimeAdapter {
   }
 
   async executeScan(context: RuntimeExecutionContext): Promise<ScanResult> {
+    if (process.env.CORYDORA_FAKE_SCAN_FAIL === '1') {
+      throw new Error('Synthetic scan failure.');
+    }
+
     const targetFile = context.prompt.match(/TARGET_FILE:\s*(.+)$/m)?.[1] ?? 'src/index.ts';
     return {
       fileSummary: `Synthetic scan result for ${targetFile}.`,
@@ -47,6 +51,7 @@ export class FakeRuntimeAdapter implements RuntimeAdapter {
           category: 'todo' as const,
           title: 'Replace placeholder implementation with a concrete branch.',
           file: targetFile,
+          targetFiles: [targetFile],
           rationale:
             'The fake runtime emits a stable task so the scheduler and queue renderer can be tested deterministically.',
           validation: 'Run the narrowest existing project test command.',
@@ -54,6 +59,15 @@ export class FakeRuntimeAdapter implements RuntimeAdapter {
           effort: 'small' as const,
           risk: 'low' as const,
           sourceAgent: 'fake-agent',
+          evidence: [
+            {
+              file: targetFile,
+              startLine: 1,
+              endLine: 1,
+              note: 'Synthetic evidence span.',
+            },
+          ],
+          confidence: 0.8,
           techLenses: ['refactoring' as const],
         },
       ],
@@ -63,6 +77,10 @@ export class FakeRuntimeAdapter implements RuntimeAdapter {
   }
 
   async executeFix(context: RuntimeExecutionContext): Promise<FixResult> {
+    if (process.env.CORYDORA_FAKE_FIX_FAIL === '1') {
+      throw new Error('Synthetic fix failure.');
+    }
+
     const targetFile = context.prompt.match(/TARGET_FILE:\s*(.+)$/m)?.[1] ?? 'src/index.ts';
     return {
       summary: `Fake runtime produced a synthetic fix for ${targetFile}.`,

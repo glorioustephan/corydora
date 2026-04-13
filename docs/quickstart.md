@@ -1,163 +1,191 @@
 ---
 title: Quickstart
+description: Run Corydora for the first time, choose a mode, and review the results the next morning.
 ---
 
 # Quickstart
 
-This tutorial walks you through initializing Corydora in a project and running it for the first time. The whole process takes about five minutes.
+This guide walks through the first useful Corydora run in a repository you already work on. The goal is simple: choose a mode, let Corydora do targeted maintenance, and come back to review the output.
 
-## Step 1 — Navigate to your project
+## Step 1: Start in a git repository
 
-Corydora must be run inside a git repository. Change into your project directory:
+Move into the repository you want Corydora to work on:
 
 ```bash
 cd your-project
 ```
 
-If the directory is not a git repository, `corydora init` will exit with an error. Initialize git first if needed:
+If the directory is not already a git repository, initialize git first:
 
 ```bash
 git init
 ```
 
-## Step 2 — Initialize
+## Step 2: Initialize Corydora
 
-Run the interactive setup:
+Create the project config:
 
 ```bash
 corydora init
 ```
 
-The wizard detects your environment and walks you through a short set of questions:
+The setup flow helps you choose:
 
-1. **Provider selection** — Corydora probes for installed runtimes and authenticated providers. The list shows each provider's auth status so you can pick one that is ready to use.
-2. **Model selection** — Defaults to the recommended model for the selected provider (e.g., `sonnet` for `claude-cli`, `gemini-2.5-pro` for `gemini-cli`). You can accept the default or type a different model name.
-3. **Git isolation mode** — Choose how Corydora isolates its changes:
-   - `Dedicated worktree` (recommended) — creates a separate git worktree so your main checkout is completely untouched
-   - `New branch in the current checkout` — creates a new branch in place
-   - `Current branch (explicit opt-in)` — edits directly on your current branch
-4. **Track markdown queue files in git** — whether to commit `.corydora/*.md` task files alongside your code (defaults to no)
-5. **Launch long runs in the background by default** — whether `corydora run` should automatically use tmux (defaults to no)
+- a default provider and model
+- a git isolation mode
+- whether markdown queue files should be tracked in git
+- whether runs should default to tmux background mode
 
-When complete, `init` creates two things in your project:
+When setup finishes, Corydora creates:
 
-- **`.corydora.json`** — your project configuration file
-- **`.corydora/`** — working directory containing state, logs, and markdown task queues (`bugs.md`, `performance.md`, `tests.md`, `todo.md`, `features.md`)
+- `.corydora.json`
+- `.corydora/`
 
-For non-interactive environments or to accept all defaults:
+For an unattended setup:
 
 ```bash
 corydora init --yes
 ```
 
-## Step 3 — Check readiness
+## Step 3: Confirm the environment
 
-Run `doctor` to confirm everything is wired up correctly:
+Run:
 
 ```bash
 corydora doctor
 ```
 
-Verify that your chosen provider shows `installed=true auth=ok` before proceeding. If auth is missing, see [Provider Setup](/providers/).
+After `init`, `doctor` becomes more useful because it also shows the configured mode, the fix route Corydora will use, the effective isolation mode it expects for that run, and the validation command it plans to execute after each fix.
 
-## Step 4 — Preview what would happen
+## Step 4: Preview the next run
 
-Run a dry run to see what Corydora would do without actually executing anything:
+Use a dry run before you spend tokens:
 
 ```bash
 corydora run --dry-run
 ```
 
-The output shows:
+The preview tells you:
 
-- Which provider and model will be used
-- The next batch of files that would be scanned
-- The next pending task that would be fixed (if any tasks are already queued)
+- which provider and model will be used
+- which mode will run
+- which agents are selected
+- which files are next in the analysis queue
+- which task is next if one is already queued
 
-This is a safe step — no files are modified, no AI calls are made, and no branches are created.
+Dry runs do not call a provider, do not create branches, and do not edit files.
 
-## Step 5 — Run in the foreground
+## Step 5: Pick a mode
 
-Start a live run where you see output as it happens:
+`auto` is the default and is the right choice if you want Corydora to make balanced maintenance decisions on its own.
+
+If you want to steer the run, choose a mode:
+
+| Mode            | Best for                                                |
+| --------------- | ------------------------------------------------------- |
+| `auto`          | General overnight cleanup with balanced priorities      |
+| `churn`         | Recently changed, frequently touched, larger files      |
+| `clean`         | Low-risk cleanup and consistency work                   |
+| `refactor`      | Simplifying large or awkward files                      |
+| `performance`   | Render-heavy, repeated-work, and I/O hotspots           |
+| `linting`       | Lint-first maintenance with AI filling gaps             |
+| `documentation` | README, schemas, CLI help, and other public-facing docs |
+
+Examples:
+
+```bash
+corydora run --mode auto
+corydora run --mode churn
+corydora run --mode refactor --agent refactoring-engineer
+```
+
+`--agent` lets you override the default agent pool for one run. You can combine builtin and imported agent IDs.
+
+## Step 6: Run in the foreground
+
+Start with a foreground run so you can watch the flow:
 
 ```bash
 corydora run
 ```
 
-Corydora begins the scan/fix loop immediately. You will see progress as files are scanned and tasks are queued and applied. The run continues until all files have been scanned and all pending tasks have been processed, or until `execution.maxRuntimeMinutes` is reached (default: 480 minutes).
+Corydora will analyze files, queue focused tasks, apply fixes, validate them when a matching script is available, and keep writing progress to `.corydora/state/` so the run can be resumed if needed.
 
-When the run finishes, the output includes the branch or worktree path where fixes were committed.
+At the end of the run, the CLI prints:
 
-## Step 6 — Run in the background
+- the run status
+- the configured isolation mode
+- the effective isolation mode actually used
+- the selected agents
+- the branch or worktree location when one was created
 
-For overnight runs, launch in a tmux session:
+## Step 7: Run in the background
+
+For overnight work, use tmux-backed background mode:
 
 ```bash
 corydora run --background
 ```
 
-This requires tmux to be installed. Corydora starts a new tmux session named `corydora-<project>-<id>` and detaches immediately, returning your terminal. The session name is printed to stdout.
+If `execution.backgroundByDefault` is enabled in config, `corydora run` will already prefer background mode unless you add `--foreground`.
 
-## Step 7 — Monitor progress
+## Step 8: Monitor or resume the run
 
-Check progress without attaching to the session:
+Check progress:
 
 ```bash
 corydora status
 ```
 
-This prints the current run's phase (`scan` or `fix`), how many tasks have been completed, which provider is active, and the target branch or worktree path.
+The status output shows the current phase, queue counts, file counts, the effective isolation mode, worker activity, and the next retry times when deferred work is waiting for another attempt.
 
-To connect directly to the live output:
+Attach to the live tmux session:
 
 ```bash
 corydora attach
 ```
 
-This attaches your terminal to the running tmux session. Press `Ctrl+b d` to detach without stopping the run.
-
-## Step 8 — Stop gracefully
-
-To stop Corydora after it finishes the current task:
-
-```bash
-corydora stop
-```
-
-This sets a graceful stop flag. Corydora will complete whichever task it is currently working on, commit any changes, save state, and exit cleanly. The tmux session is also terminated.
-
-## Step 9 — Review the results
-
-Once the run completes, check the isolated branch or worktree for committed fixes. Each fix is a separate git commit with a message in the form:
-
-```
-corydora: bugs: <task title>
-```
-
-The markdown task queues in `.corydora/` give a human-readable overview of everything found:
-
-| File                       | Contents                      |
-| -------------------------- | ----------------------------- |
-| `.corydora/bugs.md`        | Bug and security findings     |
-| `.corydora/performance.md` | Performance improvement tasks |
-| `.corydora/tests.md`       | Missing or weak test coverage |
-| `.corydora/todo.md`        | Deferred work and tech debt   |
-| `.corydora/features.md`    | Small feature opportunities   |
-
-These files are projections of the machine state in `.corydora/state/tasks.json`. Editing them directly has no effect — they are regenerated on each run.
-
-## Step 10 — Resume a stopped run
-
-If a run was interrupted or stopped, pick up exactly where it left off:
+If a run stops before it finishes, resume it:
 
 ```bash
 corydora run --resume
 ```
 
-Corydora restores the previous run's scheduler cursors, task statuses, and file progress from `.corydora/state/run-state.json`. Files that were already scanned are skipped, and tasks that were already completed are not retried.
+Corydora reclaims expired work leases and continues with the remaining queued or deferred work instead of starting from scratch.
 
-The `--resume` flag works with `--background` for overnight resumption:
+## Step 9: Stop gracefully if needed
+
+To request a clean stop:
 
 ```bash
-corydora run --resume --background
+corydora stop
 ```
+
+This asks Corydora to finish its current checkpoint, save state, and stop the tmux session if one is running.
+
+## Step 10: Review the results
+
+When the run completes, review the isolated branch or worktree the CLI reports. Corydora commits fixes incrementally so you can inspect the diff or cherry-pick commits the same way you review human changes.
+
+Useful files under `.corydora/state/`:
+
+| File             | What it is for                                 |
+| ---------------- | ---------------------------------------------- |
+| `run-state.json` | Current or most recent run summary             |
+| `tasks.json`     | Queued, deferred, blocked, and completed tasks |
+| `files.json`     | File-level analysis queue and scoring metadata |
+| `events.ndjson`  | Append-only event log for the run              |
+
+If you use `documentation` mode and want Corydora to work inside `docs/`, remove `docs` from `scan.excludeDirectories` in `.corydora.json`. Documentation mode can only prioritize files that are part of the scan set.
+
+## A good first overnight run
+
+If you just want a sensible default:
+
+```bash
+corydora doctor
+corydora run --dry-run
+corydora run --mode auto --background
+```
+
+Then use [Configuration](/configuration) to make that default fit your project.

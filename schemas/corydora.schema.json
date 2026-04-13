@@ -4,7 +4,17 @@
   "title": "CorydoraConfig",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "git", "runtime", "agents", "scan", "execution", "todo", "paths"],
+  "required": [
+    "version",
+    "git",
+    "runtime",
+    "modes",
+    "agents",
+    "scan",
+    "execution",
+    "todo",
+    "paths"
+  ],
   "properties": {
     "version": {
       "type": "integer",
@@ -33,10 +43,28 @@
     "runtime": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["provider", "model", "maxOutputTokens", "requestTimeoutMs", "maxRetries"],
+      "required": [
+        "provider",
+        "model",
+        "maxOutputTokens",
+        "requestTimeoutMs",
+        "maxRetries",
+        "stages"
+      ],
       "properties": {
         "provider": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "claude-cli",
+            "codex-cli",
+            "gemini-cli",
+            "anthropic-api",
+            "openai-api",
+            "google-api",
+            "bedrock",
+            "ollama",
+            "fake"
+          ]
         },
         "model": {
           "type": "string"
@@ -55,6 +83,49 @@
         "maxRetries": {
           "type": "integer",
           "minimum": 0
+        },
+        "stages": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["analyze", "fix", "summary"],
+          "properties": {
+            "analyze": { "$ref": "#/$defs/runtimeStage" },
+            "fix": { "$ref": "#/$defs/runtimeStage" },
+            "summary": { "$ref": "#/$defs/runtimeStage" }
+          }
+        }
+      }
+    },
+    "modes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default", "profiles"],
+      "properties": {
+        "default": {
+          "type": "string",
+          "enum": ["auto", "churn", "clean", "refactor", "performance", "linting", "documentation"]
+        },
+        "profiles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "auto",
+            "churn",
+            "clean",
+            "refactor",
+            "performance",
+            "linting",
+            "documentation"
+          ],
+          "properties": {
+            "auto": { "$ref": "#/$defs/modeProfile" },
+            "churn": { "$ref": "#/$defs/modeProfile" },
+            "clean": { "$ref": "#/$defs/modeProfile" },
+            "refactor": { "$ref": "#/$defs/modeProfile" },
+            "performance": { "$ref": "#/$defs/modeProfile" },
+            "linting": { "$ref": "#/$defs/modeProfile" },
+            "documentation": { "$ref": "#/$defs/modeProfile" }
+          }
         }
       }
     },
@@ -126,7 +197,11 @@
         "maxFixesPerRun",
         "maxRuntimeMinutes",
         "backlogTarget",
-        "validateAfterFix"
+        "validateAfterFix",
+        "maxAnalyzeWorkers",
+        "maxFixWorkers",
+        "maxAttempts",
+        "leaseTtlMinutes"
       ],
       "properties": {
         "backgroundByDefault": {
@@ -149,6 +224,22 @@
         },
         "validateAfterFix": {
           "type": "boolean"
+        },
+        "maxAnalyzeWorkers": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxFixWorkers": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "leaseTtlMinutes": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },
@@ -187,6 +278,76 @@
         },
         "envFile": {
           "type": "string"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "runtimeStage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "claude-cli",
+            "codex-cli",
+            "gemini-cli",
+            "anthropic-api",
+            "openai-api",
+            "google-api",
+            "bedrock",
+            "ollama",
+            "fake"
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "fallbackProvider": {
+          "type": "string",
+          "enum": [
+            "claude-cli",
+            "codex-cli",
+            "gemini-cli",
+            "anthropic-api",
+            "openai-api",
+            "google-api",
+            "bedrock",
+            "ollama",
+            "fake"
+          ]
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "requestTimeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxRetries": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "modeProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agentIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "categoryBias": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["bugs", "performance", "tests", "todo", "features"]
+          }
         }
       }
     }

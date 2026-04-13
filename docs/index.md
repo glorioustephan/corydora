@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: Corydora
-  text: AI Code Cleanup CLI
-  tagline: Cleaning Your Code While You Sleep
+  text: Overnight AI Maintenance for Your Repository
+  tagline: Run focused cleanup, refactoring, linting, or documentation passes on changes you can review in the morning.
   image:
     src: /logo.png
     alt: Corydora
@@ -12,26 +12,23 @@ hero:
       text: Get Started
       link: /getting-started
     - theme: alt
+      text: Quickstart
+      link: /quickstart
+    - theme: alt
       text: View on GitHub
       link: https://github.com/glorioustephan/corydora
 
 features:
-  - icon: '🔌'
-    title: Provider Neutral
-    details: Works with Claude, OpenAI, Gemini, Bedrock, and Ollama — use whichever AI runtime you already have.
-  - icon: '🛡️'
-    title: Safe by Default
-    details: Git worktree isolation keeps generated changes separate from your working tree. Every fix is a single commit on a dedicated branch.
-  - icon: '🤖'
-    title: 8 Specialized Agents
-    details: Bug Investigator, Performance Engineer, Security Auditor, and more — each tuned for a specific class of code improvement.
-  - icon: '🌙'
-    title: Background Runs
-    details: Launch in tmux and let Corydora work overnight. Check back in the morning with status and attach.
-  - icon: '🔄'
-    title: Resumable State
-    details: Runs are resumable. If Corydora stops mid-session, pick up exactly where you left off with --resume.
-  - icon: '📦'
-    title: Extensible
-    details: Import custom agent definitions from markdown files. Tune categories, tech lenses, and prompts to fit your codebase.
+  - title: Choose a focus
+    details: Run `auto` for general maintenance or switch to `churn`, `clean`, `refactor`, `performance`, `linting`, or `documentation` when you want Corydora to concentrate on one kind of improvement.
+  - title: Bring your provider
+    details: Use the runtime you already trust. Corydora supports Claude, OpenAI, Gemini, Bedrock, and Ollama through CLI-backed and API-backed routes.
+  - title: Reviewable changes
+    details: Corydora applies focused fixes in an isolated git context, commits them incrementally, and reports the effective isolation mode that was used for the run.
+  - title: Background-friendly
+    details: Start a tmux-backed run, check progress with `corydora status`, reattach with `corydora attach`, and resume an interrupted run with `corydora run --resume`.
+  - title: Cost-aware execution
+    details: Large files can be analyzed in smaller windows, stage routes can use different models, and fix handoffs stay concise so runs can stay productive without wasting tokens.
+  - title: Configurable by project
+    details: Set a default mode, choose the agents you want active, tune retries and worker counts, and route analysis and fixes differently when your workflow needs it.
 ---

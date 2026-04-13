@@ -6,6 +6,7 @@ import type {
   ScanResult,
   TaskRecord,
 } from '../types/domain.js';
+import type { AnalysisMaterial } from './modes.js';
 
 function fencedFileBlock(filePath: string, content: string): string {
   const extension = filePath.split('.').at(-1) ?? 'txt';
@@ -15,18 +16,28 @@ function fencedFileBlock(filePath: string, content: string): string {
 export function scanJsonSchemaExample(): string {
   return JSON.stringify(
     {
-      fileSummary: 'Short factual summary of the file.',
+      fileSummary: 'Short factual summary of the file or analyzed windows.',
       tasks: [
         {
           category: 'bugs',
           title: 'Concrete small task title',
           file: 'src/example.ts',
+          targetFiles: ['src/example.ts'],
           rationale: 'Why this matters.',
           validation: 'How to verify the change.',
           severity: 'medium',
           effort: 'small',
           risk: 'low',
           sourceAgent: 'bug-investigator',
+          evidence: [
+            {
+              file: 'src/example.ts',
+              startLine: 10,
+              endLine: 16,
+              note: 'Null path is missing a guard.',
+            },
+          ],
+          confidence: 0.82,
           techLenses: ['typescript'],
         },
       ],
@@ -40,7 +51,7 @@ export function scanJsonSchemaExample(): string {
 export function fixJsonSchemaExample(adapter: RuntimeAdapter): string {
   const base = {
     summary: 'Short summary of the applied change.',
-    validationSummary: 'What validation ran.',
+    validationSummary: 'Host validation runs after the fix.',
     changedFiles: ['src/example.ts'],
     needsHumanReview: false,
   };
@@ -64,22 +75,66 @@ export function fixJsonSchemaExample(adapter: RuntimeAdapter): string {
   return JSON.stringify(base, null, 2);
 }
 
+function renderAgentPrompts(agents: AgentDefinition[]): string {
+  if (agents.length === 0) {
+    return 'No explicit agent prompts were selected. Use the file evidence and mode instructions only.';
+  }
+
+  return agents.map((agent) => `- ${agent.id}: ${agent.prompt}`).join('\n');
+}
+
+function renderAnalysisMaterial(material: AnalysisMaterial): string {
+  if (material.strategy === 'full') {
+    return fencedFileBlock(material.filePath, material.fullContent ?? '');
+  }
+
+  if (material.strategy === 'tooling') {
+    return `TARGET_FILE: ${material.filePath}\n\nTooling-first mode is active. Use AI only if tool diagnostics are absent.`;
+  }
+
+  const sections = [
+    `TARGET_FILE: ${material.filePath}`,
+    '',
+    'The file exceeded the full-context budget. Use the outline and windows below.',
+    '',
+    'Outline:',
+    material.outline ?? 'No outline available.',
+    '',
+  ];
+
+  for (const window of material.windows) {
+    sections.push(
+      `Window ${window.startLine}-${window.endLine} (${window.reason})`,
+      '',
+      fencedFileBlock(material.filePath, window.content),
+      '',
+    );
+  }
+
+  return sections.join('\n');
+}
+
 export function buildScanPrompt(input: {
   filePath: string;
-  fileContent: string;
+  material: AnalysisMaterial;
   fingerprint: ProjectFingerprint;
   agents: AgentDefinition[];
+  modePrompt: string;
 }): string {
   return [
     'You are Corydora, a code scrubbing agent.',
-    'Review exactly one file and produce only small, concrete, non-duplicative tasks.',
-    'Do not suggest broad rewrites unless risk is explicitly broad.',
+    input.modePrompt,
+    'Review exactly one file target and produce only small, concrete, non-duplicative tasks.',
+    'Prefer fixes that can be executed independently and validated automatically.',
     '',
     `Project frameworks: ${input.fingerprint.frameworks.join(', ') || 'unknown'}`,
     `Project tech lenses: ${input.fingerprint.techLenses.join(', ') || 'refactoring'}`,
-    `Active agents: ${input.agents.map((agent) => `${agent.id} (${agent.description})`).join('; ')}`,
+    `Analysis strategy: ${input.material.strategy}`,
     '',
-    fencedFileBlock(input.filePath, input.fileContent),
+    'Selected agent prompts:',
+    renderAgentPrompts(input.agents),
+    '',
+    renderAnalysisMaterial(input.material),
     '',
     'Return JSON only matching this shape:',
     scanJsonSchemaExample(),
@@ -89,40 +144,47 @@ export function buildScanPrompt(input: {
 export function buildFixPrompt(input: {
   adapter: RuntimeAdapter;
   task: TaskRecord;
-  fileContent: string;
-  validateAfterFix: boolean;
+  fileContents: Array<{ path: string; content: string }>;
+  modePrompt: string;
 }): string {
   const instructions =
     input.adapter.executionMode === 'native-agent'
       ? [
           'Use available tools to edit the working tree directly.',
-          'Keep the change behavior-preserving and low/medium risk unless the task says otherwise.',
-          input.validateAfterFix
-            ? 'Run the narrowest sensible validation after the change.'
-            : 'Validation can be deferred if no narrow command exists.',
+          'Only touch the files in TARGET_FILES unless the task evidence makes an additional nearby edit necessary.',
+          'Host validation runs after the fix. Do not run repo-wide formatting.',
         ]
       : [
           'Return a JSON object with full replacement file contents in `fileEdits`.',
-          'Only rewrite the target file unless the task explicitly requires more.',
+          'Only rewrite the target files unless the task explicitly requires more.',
           'Do not return prose outside the JSON object.',
         ];
 
   return [
     'You are Corydora, executing one queued task.',
+    input.modePrompt,
     ...instructions,
     '',
     `TASK_ID: ${input.task.id}`,
     `TARGET_FILE: ${input.task.file}`,
+    `TARGET_FILES: ${input.task.handoff.targetFiles.join(', ')}`,
     `TASK_TITLE: ${input.task.title}`,
     `TASK_CATEGORY: ${input.task.category}`,
     `TASK_RISK: ${input.task.risk}`,
     `TASK_VALIDATION_HINT: ${input.task.validation}`,
+    `TASK_CONFIDENCE: ${input.task.handoff.confidence}`,
+    `TASK_SNAPSHOT_HASH: ${input.task.snapshotHash}`,
     '',
     'Rationale:',
     input.task.rationale,
     '',
+    'Evidence:',
+    ...input.task.handoff.evidence.map(
+      (item) => `- ${item.file}:${item.startLine}-${item.endLine} ${item.note}`,
+    ),
+    '',
     'Current file content:',
-    fencedFileBlock(input.task.file, input.fileContent),
+    ...input.fileContents.map(({ path, content }) => fencedFileBlock(path, content)),
     '',
     'Return JSON only matching this shape:',
     fixJsonSchemaExample(input.adapter),

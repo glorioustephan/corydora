@@ -2,27 +2,59 @@ import { appendFile, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import type { AgentDefinition, RunState, CorydoraConfig, TaskStore } from '../types/domain.js';
-import { ensureCorydoraStructure } from '../config/files.js';
-import { discoverCandidateFiles } from '../filesystem/discovery.js';
+import type {
+  AgentDefinition,
+  CorydoraConfig,
+  FileStore,
+  RunEvent,
+  RunState,
+  TaskRecord,
+  TaskStore,
+  WorkerState,
+} from '../types/domain.js';
+import { ensureCorydoraStructure, resolveStatePath } from '../config/files.js';
 import { detectProjectFingerprint } from '../filesystem/project.js';
-import { commitAllChanges } from '../git/repository.js';
+import { commitTaskChanges } from '../git/repository.js';
 import { prepareIsolationContext } from '../git/isolation.js';
 import {
+  appendRunEvent,
   countTasksByStatus,
+  loadFileStore,
   loadRunState,
   loadTaskStore,
   mergeScanFindings,
+  noteFileAnalyzed,
+  noteFileRetry,
+  noteTaskCompleted,
+  noteTaskProgress,
+  noteTaskRetry,
+  reclaimExpiredFileLeases,
+  reclaimExpiredTaskLeases,
+  reconcileFileStore,
+  saveFileStore,
   saveRunArtifact,
   saveRunState,
   saveTaskStore,
-  claimNextTask,
-  updateTaskStatus,
+  leaseFilesForAnalysis,
+  leaseTasksForFix,
 } from '../queue/state.js';
 import { renderTaskQueues } from '../queue/render.js';
 import { buildFixPrompt, buildScanPrompt } from './prompts.js';
-import { getRuntimeAdapter } from '../providers/index.js';
-import { noteFileProcessed, restoreSchedulerState, selectScanBatch } from './scheduler.js';
+import {
+  buildFileQueue,
+  canRunSecondFixWorker,
+  modePrompt,
+  prepareAnalysisMaterial,
+} from './modes.js';
+import {
+  executeStageFix,
+  executeStageScan,
+  getStageAdapter,
+  preflightIsolationMode,
+  resolveStageRoute,
+} from './routes.js';
+import { runValidation } from './validation.js';
+import { collectLintFindings } from './tooling.js';
 
 export interface RunSessionOptions {
   projectRoot: string;
@@ -30,8 +62,9 @@ export interface RunSessionOptions {
   agents: AgentDefinition[];
   dryRun: boolean;
   resume: boolean;
+  mode: CorydoraConfig['modes']['default'];
+  selectedAgentIds: string[];
   sessionName?: string;
-  forceCurrentBranch?: boolean;
   skipCommitHooks?: boolean;
   logToConsole?: boolean;
 }
@@ -64,209 +97,128 @@ async function readFileIfExists(path: string): Promise<string> {
   return readFile(path, 'utf8');
 }
 
+function createWorkers(config: CorydoraConfig): WorkerState[] {
+  const analyzeWorkers = Array.from(
+    { length: config.execution.maxAnalyzeWorkers },
+    (_value, index) => ({
+      id: `analyze-${index + 1}`,
+      kind: 'analyze' as const,
+      status: 'idle' as const,
+    }),
+  );
+  const fixWorkers = Array.from({ length: config.execution.maxFixWorkers }, (_value, index) => ({
+    id: `fix-${index + 1}`,
+    kind: 'fix' as const,
+    status: 'idle' as const,
+  }));
+  return [...analyzeWorkers, ...fixWorkers];
+}
+
+function setWorkerState(
+  workers: WorkerState[],
+  workerId: string,
+  updates: Partial<WorkerState>,
+): WorkerState[] {
+  return workers.map((worker) =>
+    worker.id === workerId
+      ? {
+          ...worker,
+          ...updates,
+        }
+      : worker,
+  );
+}
+
+function resetWorkers(workers: WorkerState[]): WorkerState[] {
+  return workers.map((worker) => ({
+    ...worker,
+    status: 'idle',
+    targetId: undefined,
+    startedAt: undefined,
+    details: undefined,
+  }));
+}
+
+function countRunnableFiles(store: FileStore, now: Date): number {
+  return store.files.filter((file) => {
+    if (!['queued', 'deferred'].includes(file.status)) {
+      return false;
+    }
+
+    return !file.nextEligibleAt || new Date(file.nextEligibleAt) <= now;
+  }).length;
+}
+
+function countRunnableTasks(store: TaskStore, config: CorydoraConfig, now: Date): number {
+  return store.tasks.filter((task) => {
+    if (!['queued', 'deferred'].includes(task.status)) {
+      return false;
+    }
+
+    if (!config.scan.allowBroadRisk && task.risk === 'broad') {
+      return false;
+    }
+
+    return !task.nextEligibleAt || new Date(task.nextEligibleAt) <= now;
+  }).length;
+}
+
+function listFixCandidates(store: TaskStore, config: CorydoraConfig, now: Date): TaskRecord[] {
+  return store.tasks.filter((task) => {
+    if (!['queued', 'deferred'].includes(task.status)) {
+      return false;
+    }
+
+    if (!config.scan.allowBroadRisk && task.risk === 'broad') {
+      return false;
+    }
+
+    if (task.nextEligibleAt && new Date(task.nextEligibleAt) > now) {
+      return false;
+    }
+
+    return task.effort === 'small' || task.effort === 'medium';
+  });
+}
+
+function outstandingAnalyzeTokens(store: FileStore): number {
+  return store.files
+    .filter((file) => file.status === 'leased')
+    .reduce((total, file) => total + file.estimatedTokens, 0);
+}
+
+function buildRunSummary(taskStore: TaskStore, fileStore: FileStore): string {
+  return [
+    `done=${countTasksByStatus(taskStore, 'done')}`,
+    `deferred=${countTasksByStatus(taskStore, 'deferred')}`,
+    `blocked=${countTasksByStatus(taskStore, 'blocked')}`,
+    `manual=${countTasksByStatus(taskStore, 'manual')}`,
+    `queued-files=${fileStore.files.filter((file) => file.status === 'queued').length}`,
+  ].join(', ');
+}
+
 async function saveAllState(
   projectRoot: string,
   config: CorydoraConfig,
   store: TaskStore,
+  fileStore: FileStore,
   state: RunState,
 ): Promise<void> {
   await saveTaskStore(projectRoot, config, store);
+  await saveFileStore(projectRoot, config, fileStore);
   await renderTaskQueues(projectRoot, config, store);
   await saveRunState(projectRoot, config, state);
   await saveRunArtifact(projectRoot, config, state);
 }
 
-async function processScans(options: {
-  files: string[];
-  projectRoot: string;
-  workRoot: string;
-  config: CorydoraConfig;
-  agents: AgentDefinition[];
-  state: RunState;
-  store: TaskStore;
-  logger: RunLogger;
-}): Promise<{ state: RunState; store: TaskStore }> {
-  const adapter = getRuntimeAdapter(options.config.runtime.provider);
-  const fingerprint = detectProjectFingerprint(options.workRoot);
-
-  let nextState = options.state;
-  let nextStore = options.store;
-
-  await options.logger(`Scanning ${options.files.length} files.`);
-
-  const concurrency = Math.max(1, options.config.scan.maxConcurrentScans);
-  for (let index = 0; index < options.files.length; index += concurrency) {
-    const slice = options.files.slice(index, index + concurrency);
-    const results = await Promise.all(
-      slice.map(async (file) => {
-        await options.logger(`Starting scan: ${file}`);
-        const fileContent = await readFile(resolve(options.workRoot, file), 'utf8');
-        const prompt = buildScanPrompt({
-          filePath: file,
-          fileContent,
-          fingerprint,
-          agents: options.agents.filter((agent) =>
-            agent.categories.some((category) =>
-              options.config.agents.enabledCategories.includes(category),
-            ),
-          ),
-        });
-
-        try {
-          const result = await adapter.executeScan({
-            rootDir: options.projectRoot,
-            workingDirectory: options.workRoot,
-            model: options.config.runtime.model,
-            prompt,
-            dryRun: false,
-            settings: {
-              maxOutputTokens: options.config.runtime.maxOutputTokens,
-              requestTimeoutMs: options.config.runtime.requestTimeoutMs,
-              maxRetries: options.config.runtime.maxRetries,
-            },
-          });
-          return { file, result, success: true as const };
-        } catch (error) {
-          return {
-            file,
-            result: error instanceof Error ? error.message : String(error),
-            success: false as const,
-          };
-        }
-      }),
-    );
-
-    for (const item of results) {
-      if (item.success) {
-        const merged = mergeScanFindings(nextStore, item.result.tasks);
-        nextStore = merged.store;
-        await options.logger(
-          `Scan complete: ${item.file} (${item.result.tasks.length} raw, ${merged.added.length} new tasks).`,
-        );
-        nextState = {
-          ...nextState,
-          scheduler: noteFileProcessed(nextState.scheduler, item.file, true),
-          updatedAt: nowIso(),
-          selectedFiles: [...new Set([...nextState.selectedFiles, item.file])],
-        };
-      } else {
-        await options.logger(`Scan failed: ${item.file} -> ${item.result}`);
-        nextState = {
-          ...nextState,
-          scheduler: noteFileProcessed(nextState.scheduler, item.file, false),
-          updatedAt: nowIso(),
-          consecutiveFailures: nextState.consecutiveFailures + 1,
-        };
-      }
-    }
-  }
-
-  return {
-    state: nextState,
-    store: nextStore,
-  };
-}
-
-async function processSingleFix(options: {
-  projectRoot: string;
-  workRoot: string;
-  config: CorydoraConfig;
-  state: RunState;
-  store: TaskStore;
-  logger: RunLogger;
-  skipCommitHooks?: boolean;
-}): Promise<{ state: RunState; store: TaskStore; fixedTaskId?: string }> {
-  const adapter = getRuntimeAdapter(options.config.runtime.provider);
-  const claimedTask = claimNextTask(
-    options.store,
-    options.state.runId,
-    options.config.scan.allowBroadRisk,
-  );
-  if (!claimedTask) {
-    return { state: options.state, store: options.store };
-  }
-
-  let nextStore = updateTaskStatus(options.store, claimedTask.id, 'claimed');
-  let nextState = {
-    ...options.state,
-    claimedTaskIds: [...new Set([...options.state.claimedTaskIds, claimedTask.id])],
-    phase: 'fix' as const,
-    updatedAt: nowIso(),
-  };
-  await options.logger(`Fix started: ${claimedTask.id} ${claimedTask.title}`);
-
-  await saveAllState(options.projectRoot, options.config, nextStore, nextState);
-
-  const fileContent = await readFileIfExists(resolve(options.workRoot, claimedTask.file));
-  const prompt = buildFixPrompt({
-    adapter,
-    task: claimedTask,
-    fileContent,
-    validateAfterFix: options.config.execution.validateAfterFix,
-  });
-
-  try {
-    const result = await adapter.executeFix({
-      rootDir: options.projectRoot,
-      workingDirectory: options.workRoot,
-      model: options.config.runtime.model,
-      prompt,
-      dryRun: false,
-      settings: {
-        maxOutputTokens: options.config.runtime.maxOutputTokens,
-        requestTimeoutMs: options.config.runtime.requestTimeoutMs,
-        maxRetries: options.config.runtime.maxRetries,
-      },
-    });
-
-    const committed =
-      adapter.executionMode === 'fake'
-        ? false
-        : commitAllChanges(
-            options.workRoot,
-            `corydora: ${claimedTask.category}: ${claimedTask.title.slice(0, 60)}`,
-            options.skipCommitHooks ? { skipHooks: true } : {},
-          );
-
-    nextStore = updateTaskStatus(
-      nextStore,
-      claimedTask.id,
-      committed || result.changedFiles.length > 0 ? 'done' : 'blocked',
-      committed || result.changedFiles.length > 0 ? undefined : 'No changes were produced.',
-    );
-    nextState = {
-      ...nextState,
-      completedFixCount: nextState.completedFixCount + 1,
-      completedTaskIds: [...new Set([...nextState.completedTaskIds, claimedTask.id])],
-      consecutiveFailures: 0,
-      updatedAt: nowIso(),
-    };
-    return {
-      state: nextState,
-      store: nextStore,
-      fixedTaskId: claimedTask.id,
-    };
-  } catch (error) {
-    await options.logger(
-      `Fix failed: ${claimedTask.id} ${error instanceof Error ? error.message : String(error)}`,
-    );
-    nextStore = updateTaskStatus(
-      nextStore,
-      claimedTask.id,
-      'failed',
-      error instanceof Error ? error.message : String(error),
-    );
-    nextState = {
-      ...nextState,
-      consecutiveFailures: nextState.consecutiveFailures + 1,
-      updatedAt: nowIso(),
-    };
-    return {
-      state: nextState,
-      store: nextStore,
-      fixedTaskId: claimedTask.id,
-    };
-  }
+async function emitEvent(
+  projectRoot: string,
+  config: CorydoraConfig,
+  logger: RunLogger,
+  event: RunEvent,
+): Promise<void> {
+  await appendRunEvent(projectRoot, config, event);
+  await logger(`${event.type}: ${event.message}`);
 }
 
 async function shouldStop(projectRoot: string, config: CorydoraConfig): Promise<boolean> {
@@ -285,37 +237,62 @@ export async function runCorydoraSession(options: RunSessionOptions): Promise<Ru
     resolve(options.projectRoot, options.config.paths.logsDir, `${runId}.log`),
     options.logToConsole ?? true,
   );
+  const analyzeRoute = resolveStageRoute(options.config, 'analyze');
+  const fixRoute = resolveStageRoute(options.config, 'fix');
+  const isolationPreflight = preflightIsolationMode({
+    projectRoot: options.projectRoot,
+    config: options.config,
+    fixRoute,
+    mode: options.mode,
+  });
   const isolation = prepareIsolationContext({
     projectRoot: options.projectRoot,
     config: options.config,
     runId,
     dryRun: options.dryRun,
+    isolationMode: isolationPreflight.effectiveIsolationMode,
   });
+  const fingerprint = detectProjectFingerprint(isolation.workRoot);
+  const filesStatePath = resolveStatePath(options.projectRoot, options.config, 'files.json');
 
-  const files = discoverCandidateFiles(isolation.workRoot, {
-    includeExtensions: options.config.scan.includeExtensions,
-    excludeDirectories: options.config.scan.excludeDirectories,
-  });
+  let taskStore = reclaimExpiredTaskLeases(
+    await loadTaskStore(options.projectRoot, options.config),
+  );
+  let fileStore = reclaimExpiredFileLeases(
+    await loadFileStore(options.projectRoot, options.config),
+  );
+  fileStore = reconcileFileStore(
+    fileStore,
+    buildFileQueue({
+      projectRoot: options.projectRoot,
+      workRoot: isolation.workRoot,
+      config: options.config,
+      mode: options.mode,
+      taskStore,
+    }),
+  );
 
-  let store = await loadTaskStore(options.projectRoot, options.config);
   let state: RunState = existingRun ?? {
     runId,
     status: 'running',
-    phase: 'scan',
+    phase: 'analyze',
     repositoryRoot: options.projectRoot,
     workRoot: isolation.workRoot,
     provider: options.config.runtime.provider,
     model: options.config.runtime.model,
     isolationMode: options.config.git.isolationMode,
+    effectiveIsolationMode: isolationPreflight.effectiveIsolationMode,
+    mode: options.mode,
+    selectedAgentIds: options.selectedAgentIds,
     startedAt: nowIso(),
     updatedAt: nowIso(),
     stopRequested: false,
-    selectedFiles: [],
     claimedTaskIds: [],
     completedTaskIds: [],
     consecutiveFailures: 0,
     completedFixCount: 0,
-    scheduler: restoreSchedulerState(undefined, files),
+    filesPath: filesStatePath,
+    workers: createWorkers(options.config),
     ...(isolation.branchName ? { branchName: isolation.branchName } : {}),
     ...(isolation.baseBranch ? { baseBranch: isolation.baseBranch } : {}),
     ...(isolation.worktreePath ? { worktreePath: isolation.worktreePath } : {}),
@@ -334,20 +311,44 @@ export async function runCorydoraSession(options: RunSessionOptions): Promise<Ru
   state = {
     ...state,
     status: 'running',
-    phase: 'scan',
+    phase: 'analyze',
     workRoot: isolation.workRoot,
-    scheduler: restoreSchedulerState(state.scheduler, files),
+    effectiveIsolationMode: isolationPreflight.effectiveIsolationMode,
+    mode: options.mode,
+    selectedAgentIds: options.selectedAgentIds,
+    filesPath: filesStatePath,
     updatedAt: nowIso(),
+    workers: resetWorkers(state.workers.length > 0 ? state.workers : createWorkers(options.config)),
+    ...(isolation.branchName ? { branchName: isolation.branchName } : {}),
+    ...(isolation.baseBranch ? { baseBranch: isolation.baseBranch } : {}),
+    ...(isolation.worktreePath ? { worktreePath: isolation.worktreePath } : {}),
   };
 
-  await saveAllState(options.projectRoot, options.config, store, state);
-  await logger(
-    `Run ${runId} prepared (isolation=${isolation.mode}, branch=${
-      isolation.branchName ?? 'current-branch'
-    }).`,
-  );
+  await saveAllState(options.projectRoot, options.config, taskStore, fileStore, state);
+  await emitEvent(options.projectRoot, options.config, logger, {
+    runId,
+    at: nowIso(),
+    type: 'run.prepared',
+    stage: 'summary',
+    message: `Prepared run with ${fileStore.files.length} file candidates.`,
+    metadata: {
+      isolationMode: isolation.mode,
+      effectiveIsolationMode: isolationPreflight.effectiveIsolationMode,
+      mode: options.mode,
+    },
+  });
+  if (isolationPreflight.reason) {
+    await emitEvent(options.projectRoot, options.config, logger, {
+      runId,
+      at: nowIso(),
+      type: 'run.preflight',
+      stage: 'summary',
+      message: isolationPreflight.reason,
+    });
+  }
 
   const deadline = Date.now() + options.config.execution.maxRuntimeMinutes * 60_000;
+  const leaseTtlMs = options.config.execution.leaseTtlMinutes * 60_000;
 
   try {
     while (Date.now() < deadline) {
@@ -355,78 +356,422 @@ export async function runCorydoraSession(options: RunSessionOptions): Promise<Ru
         state = {
           ...state,
           status: 'stopped',
-          phase: 'idle',
+          phase: 'summary',
           finishedAt: nowIso(),
           updatedAt: nowIso(),
         };
-        await logger('Stop requested. Finishing with stopped status.');
+        await emitEvent(options.projectRoot, options.config, logger, {
+          runId,
+          at: nowIso(),
+          type: 'run.stopped',
+          stage: 'summary',
+          message: 'Stop requested. Finishing with stopped status.',
+        });
         break;
       }
 
-      const latestFiles = discoverCandidateFiles(isolation.workRoot, {
-        includeExtensions: options.config.scan.includeExtensions,
-        excludeDirectories: options.config.scan.excludeDirectories,
-      });
+      taskStore = reclaimExpiredTaskLeases(taskStore);
+      fileStore = reclaimExpiredFileLeases(fileStore);
+      fileStore = reconcileFileStore(
+        fileStore,
+        buildFileQueue({
+          projectRoot: options.projectRoot,
+          workRoot: isolation.workRoot,
+          config: options.config,
+          mode: options.mode,
+          taskStore,
+        }),
+      );
       state = {
         ...state,
-        scheduler: restoreSchedulerState(state.scheduler, latestFiles),
+        workers: resetWorkers(state.workers),
         updatedAt: nowIso(),
       };
 
-      const scanBatch = selectScanBatch(
-        state.scheduler,
-        latestFiles,
-        options.config.scan.batchSize,
+      const now = new Date();
+      const queuedTasks = countRunnableTasks(taskStore, options.config, now);
+      const queuedFiles = countRunnableFiles(fileStore, now);
+      const pendingBacklog =
+        queuedTasks +
+        taskStore.tasks.filter((task) => ['leased', 'applying', 'validating'].includes(task.status))
+          .length;
+      let analyzeWorkerCount = Math.min(
+        options.config.execution.maxAnalyzeWorkers,
+        options.config.scan.maxConcurrentScans,
       );
-      if (scanBatch.length > 0) {
-        await logger(`Scan batch selected (${scanBatch.length}): ${scanBatch.join(', ')}`);
-        const processed = await processScans({
-          files: scanBatch,
-          projectRoot: options.projectRoot,
-          workRoot: isolation.workRoot,
-          config: options.config,
-          agents: options.agents,
-          state,
-          store,
-          logger,
-        });
-        state = {
-          ...processed.state,
-          phase: 'scan',
-        };
-        store = processed.store;
-        await saveAllState(options.projectRoot, options.config, store, state);
+      if (
+        pendingBacklog >= options.config.execution.backlogTarget ||
+        outstandingAnalyzeTokens(fileStore) >
+          analyzeRoute.settings.maxOutputTokens * Math.max(1, analyzeWorkerCount)
+      ) {
+        analyzeWorkerCount = Math.min(analyzeWorkerCount, 1);
+      }
+      if (pendingBacklog >= options.config.execution.backlogTarget * 2) {
+        analyzeWorkerCount = 0;
+      }
+      if (state.consecutiveFailures >= 2) {
+        analyzeWorkerCount = Math.min(analyzeWorkerCount, 1);
       }
 
-      const pendingCount = countTasksByStatus(store, 'pending');
-      const noRemainingFiles = scanBatch.length === 0;
-      const shouldFix =
-        pendingCount >= options.config.execution.backlogTarget ||
-        (noRemainingFiles && pendingCount > 0);
-
-      if (shouldFix && state.completedFixCount < options.config.execution.maxFixesPerRun) {
-        const fixed = await processSingleFix({
-          projectRoot: options.projectRoot,
-          workRoot: isolation.workRoot,
-          config: options.config,
-          state,
-          store,
-          logger,
-          ...(options.skipCommitHooks ? { skipCommitHooks: true } : {}),
+      if (analyzeWorkerCount > 0 && queuedFiles > 0) {
+        const leasedFiles = leaseFilesForAnalysis({
+          store: fileStore,
+          runId,
+          maxCount: analyzeWorkerCount,
+          leaseTtlMs,
+          now,
         });
-        state = fixed.state;
-        store = fixed.store;
-        if (fixed.fixedTaskId) {
-          await logger(`Fix attempted for task ${fixed.fixedTaskId}.`);
+        fileStore = leasedFiles.store;
+        leasedFiles.leased.forEach((file, index) => {
+          const worker = state.workers.filter((candidate) => candidate.kind === 'analyze')[index];
+          if (worker) {
+            state = {
+              ...state,
+              workers: setWorkerState(state.workers, worker.id, {
+                status: 'running',
+                targetId: file.id,
+                startedAt: nowIso(),
+                details: file.path,
+              }),
+            };
+          }
+        });
+        await saveAllState(options.projectRoot, options.config, taskStore, fileStore, state);
+
+        const analyzeResults = await Promise.all(
+          leasedFiles.leased.map(async (file) => {
+            try {
+              const analysisMaterial =
+                file.analysisStrategy === 'tooling'
+                  ? null
+                  : prepareAnalysisMaterial(isolation.workRoot, file);
+              const toolingFindings =
+                options.mode === 'linting'
+                  ? collectLintFindings(isolation.workRoot, file.path)
+                  : null;
+              if (toolingFindings && toolingFindings.length > 0) {
+                return {
+                  kind: 'success' as const,
+                  file,
+                  provider: 'tooling',
+                  findings: toolingFindings,
+                  analysisStrategy: 'tooling' as const,
+                };
+              }
+
+              const aiMaterial =
+                analysisMaterial ??
+                prepareAnalysisMaterial(isolation.workRoot, {
+                  ...file,
+                  analysisStrategy:
+                    file.estimatedTokens > Math.floor(analyzeRoute.settings.maxOutputTokens * 0.75)
+                      ? 'windowed'
+                      : 'full',
+                });
+              const scanPrompt = buildScanPrompt({
+                filePath: file.path,
+                material: aiMaterial,
+                fingerprint,
+                agents: options.agents,
+                modePrompt: modePrompt(options.mode),
+              });
+              const scanExecution = await executeStageScan(analyzeRoute, {
+                rootDir: options.projectRoot,
+                workingDirectory: isolation.workRoot,
+                prompt: scanPrompt,
+                dryRun: false,
+              });
+              return {
+                kind: 'success' as const,
+                file,
+                provider: scanExecution.provider,
+                findings: scanExecution.result.tasks,
+                analysisStrategy: aiMaterial.strategy,
+              };
+            } catch (error) {
+              return {
+                kind: 'failure' as const,
+                file,
+                error: error instanceof Error ? error.message : String(error),
+              };
+            }
+          }),
+        );
+
+        for (const result of analyzeResults) {
+          if (result.kind === 'success') {
+            const merged = mergeScanFindings(taskStore, result.findings, result.file.snapshotHash);
+            taskStore = merged.store;
+            fileStore = noteFileAnalyzed(fileStore, result.file.id, {
+              analysisStrategy: result.analysisStrategy,
+            });
+            state = {
+              ...state,
+              phase: 'analyze',
+              consecutiveFailures: 0,
+              updatedAt: nowIso(),
+            };
+            await emitEvent(options.projectRoot, options.config, logger, {
+              runId,
+              at: nowIso(),
+              type: 'analysis.completed',
+              stage: 'analyze',
+              itemId: result.file.id,
+              itemPath: result.file.path,
+              message: `Analyzed ${result.file.path} with ${result.findings.length} finding(s).`,
+              metadata: {
+                provider: result.provider,
+                findings: result.findings.length,
+              },
+            });
+          } else {
+            fileStore = noteFileRetry({
+              store: fileStore,
+              fileId: result.file.id,
+              error: result.error,
+              maxAttempts: options.config.execution.maxAttempts,
+            });
+            state = {
+              ...state,
+              consecutiveFailures: state.consecutiveFailures + 1,
+              updatedAt: nowIso(),
+            };
+            await emitEvent(options.projectRoot, options.config, logger, {
+              runId,
+              at: nowIso(),
+              type: 'analysis.failed',
+              stage: 'analyze',
+              itemId: result.file.id,
+              itemPath: result.file.path,
+              message: result.error,
+            });
+          }
         }
-        await saveAllState(options.projectRoot, options.config, store, state);
+
+        await saveAllState(options.projectRoot, options.config, taskStore, fileStore, state);
       }
 
-      const exhaustedFiles = selectScanBatch(state.scheduler, latestFiles, 1).length === 0;
-      const exhaustedTasks = countTasksByStatus(store, 'pending') === 0;
-      if (exhaustedFiles && exhaustedTasks) {
-        await logger('All scan and task queues are empty. Finishing.');
+      const noRunnableFiles = countRunnableFiles(fileStore, new Date()) === 0;
+      const shouldFix =
+        countRunnableTasks(taskStore, options.config, new Date()) > 0 &&
+        (countRunnableTasks(taskStore, options.config, new Date()) >=
+          options.config.execution.backlogTarget ||
+          noRunnableFiles) &&
+        state.completedFixCount < options.config.execution.maxFixesPerRun;
+
+      if (shouldFix) {
+        const fixCandidates = listFixCandidates(taskStore, options.config, new Date());
+        const requestedFixWorkers =
+          options.config.execution.maxFixWorkers > 1 &&
+          canRunSecondFixWorker(fixCandidates.slice(0, 2).flatMap((task) => task.targetFiles))
+            ? Math.min(options.config.execution.maxFixWorkers, 2)
+            : 1;
+        const leasedTasks = leaseTasksForFix({
+          store: taskStore,
+          runId,
+          maxCount: requestedFixWorkers,
+          leaseTtlMs,
+          allowBroadRisk: options.config.scan.allowBroadRisk,
+          now: new Date(),
+        });
+        taskStore = leasedTasks.store;
+        state = {
+          ...state,
+          phase: 'fix',
+          claimedTaskIds: [
+            ...new Set([...state.claimedTaskIds, ...leasedTasks.leased.map((task) => task.id)]),
+          ],
+          workers: leasedTasks.leased.reduce((workers, task, index) => {
+            const fixWorker = workers.filter((candidate) => candidate.kind === 'fix')[index];
+            if (!fixWorker) {
+              return workers;
+            }
+
+            return setWorkerState(workers, fixWorker.id, {
+              status: 'running',
+              targetId: task.id,
+              startedAt: nowIso(),
+              details: task.title,
+            });
+          }, state.workers),
+        };
+        await saveAllState(options.projectRoot, options.config, taskStore, fileStore, state);
+
+        for (const task of leasedTasks.leased) {
+          taskStore = noteTaskProgress(taskStore, task.id, 'applying');
+          await emitEvent(options.projectRoot, options.config, logger, {
+            runId,
+            at: nowIso(),
+            type: 'fix.started',
+            stage: 'fix',
+            itemId: task.id,
+            itemPath: task.file,
+            message: `Fix started for ${task.title}.`,
+          });
+          await saveAllState(options.projectRoot, options.config, taskStore, fileStore, state);
+
+          try {
+            const fileContents = await Promise.all(
+              task.handoff.targetFiles.map(async (filePath) => ({
+                path: filePath,
+                content: await readFileIfExists(resolve(isolation.workRoot, filePath)),
+              })),
+            );
+            const fixExecution = await executeStageFix(fixRoute, {
+              rootDir: options.projectRoot,
+              workingDirectory: isolation.workRoot,
+              prompt: buildFixPrompt({
+                adapter: getStageAdapter(fixRoute),
+                task,
+                fileContents,
+                modePrompt: modePrompt(options.mode),
+              }),
+              dryRun: false,
+            });
+            taskStore = noteTaskProgress(taskStore, task.id, 'validating');
+            await saveAllState(options.projectRoot, options.config, taskStore, fileStore, state);
+
+            const adapter = getStageAdapter({
+              ...fixRoute,
+              provider: fixExecution.provider,
+            });
+            const validationResult = runValidation(
+              isolation.workRoot,
+              options.mode,
+              options.config.execution.validateAfterFix,
+            );
+            if (validationResult.status === 'failed') {
+              taskStore = noteTaskRetry({
+                store: taskStore,
+                taskId: task.id,
+                error: validationResult.summary,
+                maxAttempts: options.config.execution.maxAttempts,
+                blocked: true,
+                validationResult,
+              });
+              state = {
+                ...state,
+                consecutiveFailures: state.consecutiveFailures + 1,
+                updatedAt: nowIso(),
+              };
+              await emitEvent(options.projectRoot, options.config, logger, {
+                runId,
+                at: nowIso(),
+                type: 'fix.validation-failed',
+                stage: 'fix',
+                itemId: task.id,
+                itemPath: task.file,
+                message: validationResult.summary,
+              });
+              continue;
+            }
+
+            const changedFiles =
+              fixExecution.result.changedFiles.length > 0
+                ? fixExecution.result.changedFiles
+                : task.handoff.targetFiles;
+            const committed =
+              adapter.executionMode === 'fake'
+                ? changedFiles.length > 0
+                : commitTaskChanges(
+                    isolation.workRoot,
+                    `corydora: ${task.category}: ${task.title.slice(0, 60)}`,
+                    changedFiles,
+                    options.skipCommitHooks ? { skipHooks: true } : {},
+                  );
+
+            if (!committed) {
+              taskStore = noteTaskRetry({
+                store: taskStore,
+                taskId: task.id,
+                error: 'No changes were produced.',
+                maxAttempts: options.config.execution.maxAttempts,
+                blocked: true,
+                validationResult,
+              });
+              state = {
+                ...state,
+                consecutiveFailures: state.consecutiveFailures + 1,
+                updatedAt: nowIso(),
+              };
+              await emitEvent(options.projectRoot, options.config, logger, {
+                runId,
+                at: nowIso(),
+                type: 'fix.blocked',
+                stage: 'fix',
+                itemId: task.id,
+                itemPath: task.file,
+                message: 'No changes were produced.',
+              });
+              continue;
+            }
+
+            taskStore = noteTaskCompleted(taskStore, task.id, validationResult);
+            state = {
+              ...state,
+              completedFixCount: state.completedFixCount + 1,
+              completedTaskIds: [...new Set([...state.completedTaskIds, task.id])],
+              consecutiveFailures: 0,
+              updatedAt: nowIso(),
+            };
+            await emitEvent(options.projectRoot, options.config, logger, {
+              runId,
+              at: nowIso(),
+              type: 'fix.completed',
+              stage: 'fix',
+              itemId: task.id,
+              itemPath: task.file,
+              message: `Completed fix for ${task.title}.`,
+              metadata: {
+                changedFiles: changedFiles.length,
+                validation: validationResult.status,
+              },
+            });
+          } catch (error) {
+            taskStore = noteTaskRetry({
+              store: taskStore,
+              taskId: task.id,
+              error: error instanceof Error ? error.message : String(error),
+              maxAttempts: options.config.execution.maxAttempts,
+            });
+            state = {
+              ...state,
+              consecutiveFailures: state.consecutiveFailures + 1,
+              updatedAt: nowIso(),
+            };
+            await emitEvent(options.projectRoot, options.config, logger, {
+              runId,
+              at: nowIso(),
+              type: 'fix.failed',
+              stage: 'fix',
+              itemId: task.id,
+              itemPath: task.file,
+              message: error instanceof Error ? error.message : String(error),
+            });
+          } finally {
+            await saveAllState(options.projectRoot, options.config, taskStore, fileStore, state);
+          }
+        }
+      }
+
+      const remainingRunnableFiles = countRunnableFiles(fileStore, new Date());
+      const remainingRunnableTasks = countRunnableTasks(taskStore, options.config, new Date());
+      const activeTaskCount = taskStore.tasks.filter((task) =>
+        ['leased', 'applying', 'validating'].includes(task.status),
+      ).length;
+      if (remainingRunnableFiles === 0 && remainingRunnableTasks === 0 && activeTaskCount === 0) {
+        await emitEvent(options.projectRoot, options.config, logger, {
+          runId,
+          at: nowIso(),
+          type: 'run.drained',
+          stage: 'summary',
+          message: 'All file and task queues are drained.',
+        });
         break;
+      }
+
+      if (remainingRunnableFiles === 0 && remainingRunnableTasks === 0) {
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_000));
       }
     }
 
@@ -434,23 +779,37 @@ export async function runCorydoraSession(options: RunSessionOptions): Promise<Ru
       state = {
         ...state,
         status: 'completed',
-        phase: 'idle',
+        phase: 'summary',
         finishedAt: nowIso(),
         updatedAt: nowIso(),
+        summary: buildRunSummary(taskStore, fileStore),
       };
-      await logger('Run completed.');
+      await emitEvent(options.projectRoot, options.config, logger, {
+        runId,
+        at: nowIso(),
+        type: 'run.completed',
+        stage: 'summary',
+        message: state.summary ?? 'Run completed.',
+      });
     }
   } catch (error) {
     state = {
       ...state,
       status: 'failed',
-      phase: 'idle',
+      phase: 'summary',
       finishedAt: nowIso(),
       updatedAt: nowIso(),
+      summary: buildRunSummary(taskStore, fileStore),
     };
-    await logger(`Run failed: ${error instanceof Error ? error.message : String(error)}`);
+    await emitEvent(options.projectRoot, options.config, logger, {
+      runId,
+      at: nowIso(),
+      type: 'run.failed',
+      stage: 'summary',
+      message: error instanceof Error ? error.message : String(error),
+    });
   } finally {
-    await saveAllState(options.projectRoot, options.config, store, state);
+    await saveAllState(options.projectRoot, options.config, taskStore, fileStore, state);
   }
 
   return state;

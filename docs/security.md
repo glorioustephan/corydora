@@ -1,25 +1,19 @@
 ---
 title: Security Model
+description: How Corydora handles secrets, git isolation, provider access, and local validation.
 ---
 
 # Security Model
 
-Corydora is designed with a minimal footprint: it reads your code, delegates work to a configured AI provider, and writes results back through controlled, validated pathways. This page documents the security decisions built into every layer.
+Corydora is designed to keep control in your hands. It runs locally, writes to a git-isolated workspace or branch, and leaves publishing decisions to you.
 
 ## Secrets Management
 
-`.corydora.json` never contains secrets. The config file holds only provider IDs, model names, and behavioral configuration — nothing that would be sensitive if committed to source control.
+`.corydora.json` does not store secrets. Put API keys and similar credentials in `.corydora/.env.local`, which Corydora creates during `init` and keeps out of git by default.
 
-Project-local secrets (API keys, tokens, environment-specific values) belong in `.corydora/.env.local`, which is gitignored by default. When you run `corydora init`, the `.env.local` template is created automatically with placeholder entries for each configured provider.
+Use that file for provider credentials. Do not commit it.
 
-```
-.corydora/
-  .env.local        # gitignored — API keys and secrets go here
-  queue/            # generated task markdown files
-  state.json        # scheduler cursor and run state
-```
-
-Never commit `.env.local`. If it is accidentally staged, remove it with:
+If it does get staged accidentally:
 
 ```bash
 git rm --cached .corydora/.env.local
@@ -27,41 +21,45 @@ git rm --cached .corydora/.env.local
 
 ## Git Isolation
 
-Corydora offers three isolation modes that control how generated changes interact with your repository. The mode is set in `.corydora.json` under `git.isolationMode`.
+Corydora supports three isolation modes in `git.isolationMode`.
 
-### Worktree mode (default)
+### `worktree`
 
 ```json
 { "git": { "isolationMode": "worktree" } }
 ```
 
-Corydora creates a separate git worktree in a temporary directory. Your main checkout is completely untouched. Generated changes live in an isolated directory and are only visible to you after you inspect or merge them. This is the safest mode and the default for all new projects.
+Corydora tries to keep generated changes away from your main checkout.
 
-### Branch mode
+### `branch`
 
 ```json
 { "git": { "isolationMode": "branch" } }
 ```
 
-Corydora creates a new branch and checks it out in the same working directory. Your main branch is not modified, but the working tree is shared. This is appropriate when you want to review diffs inline using your normal editor setup.
+Corydora creates a generated branch in the current checkout.
 
-### Current-branch mode
+### `current-branch`
 
 ```json
 { "git": { "isolationMode": "current-branch" } }
 ```
 
-Corydora edits directly on your active branch. This requires explicit opt-in in the config and should only be used when you understand that generated changes will land on your working branch. There is no automatic rollback if you decide you do not want the results.
+Corydora edits your active branch directly. This is the least isolated option and requires an explicit choice.
 
-**Use worktree or branch mode unless you have a specific reason to work on the current branch.**
+### Configured mode vs effective mode
+
+For reliability, a run configured for `worktree` may still use `branch` when the chosen fix route or post-fix validation step needs direct access to the repository's installed dependencies. Corydora reports both the configured isolation mode and the effective isolation mode so you can see exactly what happened.
+
+Use `worktree` or `branch` unless you have a specific reason to work on the current branch.
 
 ## Runtime Permissions
 
-Permission grants differ between the scan phase (read-only analysis) and the fix phase (controlled writes).
+Provider access depends on how you run Corydora.
 
-### During scans
+### Analysis
 
-AI providers operate in read-only mode. No writes to the filesystem occur during a scan pass.
+Analysis does not modify files. Corydora either sends file content to an API provider or lets a CLI-backed provider inspect the repository in the working directory.
 
 | Provider                                                                         | Constraint                                                              |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
@@ -69,30 +67,28 @@ AI providers operate in read-only mode. No writes to the filesystem occur during
 | `codex-cli`                                                                      | `--sandbox read-only`                                                   |
 | API providers (`anthropic-api`, `openai-api`, `google-api`, `bedrock`, `ollama`) | Receive file content as prompt context; have no filesystem access       |
 
-### During fixes
+### Fixing
 
-Providers have controlled write access scoped to the task being applied.
+Fixes are scoped to the task Corydora is applying.
 
-| Provider      | Constraint                                                                                                                  |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `claude-cli`  | `--permission-mode acceptEdits`; Bash tool restricted to `git status*` and `git diff*` patterns                             |
-| `codex-cli`   | `--sandbox workspace-write --full-auto`                                                                                     |
-| API providers | Return replacement content in structured JSON; Corydora writes to disk — the provider never touches the filesystem directly |
+| Provider      | Constraint                                                                                      |
+| ------------- | ----------------------------------------------------------------------------------------------- |
+| `claude-cli`  | `--permission-mode acceptEdits`; Bash tool restricted to `git status*` and `git diff*` patterns |
+| `codex-cli`   | `--sandbox workspace-write --full-auto`                                                         |
+| API providers | Return replacement content in structured JSON; Corydora writes to disk                          |
 
-## Task Normalization
+## Validation and review boundaries
 
-Agent output is never used raw. Every response passes through a Zod schema validation step before it becomes a task record in the queue:
+When `execution.validateAfterFix` is enabled, Corydora runs a local validation command after each fix. That validation runs on your machine against your repository, not inside a remote service.
 
-1. Raw AI text or JSON is parsed against the expected task schema.
-2. Invalid or incomplete fields are rejected — the task is dropped, not partially stored.
-3. Task titles, descriptions, and file paths are stored as validated data types.
-4. Queue markdown files are rendered from validated task records, not from raw AI output.
+This gives you two lines of defense:
 
-Deduplication runs after normalization. Each task is fingerprinted with a SHA256 hash of its normalized content. Tasks with matching hashes are silently dropped, preventing the same finding from accumulating across repeated scan passes.
+- isolated git output
+- local validation before Corydora moves on to the next change
 
 ## Risk Classification
 
-Every finding produced by a scan is assigned a risk level.
+Corydora classifies findings by scope. By default, it avoids automatically applying broader changes.
 
 | Level    | Meaning                                                              |
 | -------- | -------------------------------------------------------------------- |
@@ -100,21 +96,17 @@ Every finding produced by a scan is assigned a risk level.
 | `medium` | Moderate scope; touches a single module or component                 |
 | `broad`  | Cross-cutting change; may affect multiple files or public interfaces |
 
-By default, `broad` risk findings are excluded from the fix queue. They are surfaced in the scan results for manual review but Corydora will not attempt to apply them automatically.
-
-To include broad-risk tasks in automated fixes, set the following in `.corydora.json`:
+If you want Corydora to include broader changes, enable `scan.allowBroadRisk`.
 
 ```json
 { "scan": { "allowBroadRisk": true } }
 ```
 
-Only enable this when you have reviewed the broad-risk findings and are comfortable with the scope of changes they may introduce.
-
-Post-fix validation is enabled by default (`execution.validateAfterFix: true`). After each task is applied, Corydora runs a validation step to confirm the change did not break the build or introduce obvious regressions before moving to the next task.
+Only enable that when you are comfortable with a wider change surface.
 
 ## What Corydora Does Not Do
 
 - Does not push branches or create pull requests automatically. All changes stay local until you push them.
-- Does not modify your main branch unless you have explicitly configured `git.isolationMode: "current-branch"` and your active branch is main.
+- Does not modify your main branch unless you explicitly run in `current-branch` mode while on that branch.
 - Does not send source code to any service other than the AI provider you have configured in `.corydora.json`.
-- Does not store or log API keys. Keys are read from `.corydora/.env.local` at runtime and never written to disk or console output.
+- Does not store or log API keys in `.corydora.json`.

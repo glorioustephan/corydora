@@ -7,12 +7,16 @@ function statusMarker(task: TaskRecord): string {
   switch (task.status) {
     case 'done':
       return '[x]';
-    case 'failed':
-      return '[!]';
     case 'blocked':
       return '[-]';
-    case 'claimed':
+    case 'manual':
+      return '[!]';
+    case 'leased':
+    case 'applying':
+    case 'validating':
       return '[/]';
+    case 'deferred':
+      return '[~]';
     default:
       return '[ ]';
   }
@@ -37,6 +41,11 @@ function renderCategoryDocument(category: TaskCategory, tasks: TaskRecord[]): st
     lines.push(`  - Validate: ${task.validation}`);
     if (task.lastError) {
       lines.push(`  - Last error: ${task.lastError}`);
+    }
+    if (task.validationResult) {
+      lines.push(
+        `  - Validation: ${task.validationResult.status} (${task.validationResult.summary})`,
+      );
     }
   }
 

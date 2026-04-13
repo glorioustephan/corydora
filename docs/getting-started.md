@@ -1,62 +1,63 @@
 ---
 title: Getting Started
+description: Install Corydora, verify your runtime, and prepare your repository for its first run.
 ---
 
 # Getting Started
 
-Corydora is a globally installable CLI that runs overnight AI-assisted code cleanup on your project. It scans your codebase, builds a categorized task queue, and applies small focused fixes on a dedicated branch — leaving your working tree untouched.
+Corydora is a globally installable CLI for overnight code maintenance. You point it at a git repository, choose a provider and a mode, and let it work through focused improvements that you can review later.
 
 ## Prerequisites
 
-Before installing Corydora, make sure you have the following:
+Before you install Corydora, make sure you have:
 
-- **Node.js** `24.14.0` or newer
-- **pnpm** `10.32.1` or newer (recommended), or npm
-- **git** — Corydora requires a git repository to isolate its changes
-- **At least one AI provider** — see [Provider Setup](/providers/) for configuration instructions
+- **Node.js** `20.19.0` or newer
+- **pnpm** `10.32.1` or newer if you want the recommended package manager, or npm if you prefer it
+- **git** because Corydora runs inside a git repository
+- **At least one configured provider**. See [Providers](/providers/) for setup details.
 
-Corydora supports CLI-backed providers (`claude-cli`, `codex-cli`, `gemini-cli`) and API-backed providers (`anthropic-api`, `openai-api`, `google-api`, `bedrock`, `ollama`). You only need one.
+You only need one runtime. Corydora supports CLI-backed providers such as `claude-cli`, `codex-cli`, and `gemini-cli`, plus API-backed providers such as `anthropic-api`, `openai-api`, `google-api`, `bedrock`, and `ollama`.
 
 ## Installation
 
-Install Corydora globally with pnpm:
+Install Corydora globally:
 
 ```bash
 pnpm add -g corydora
 ```
 
-Or with npm:
+Or:
 
 ```bash
 npm install -g corydora
 ```
 
-## Verify Installation
+## Verify the CLI
 
-Confirm the CLI is available:
+Confirm the binary is available:
 
 ```bash
 corydora --version
 ```
 
-You should see the current version number printed to stdout.
+You should see the installed version.
 
-## First-time Setup
+## Check provider readiness
 
-Before initializing a project, run `corydora doctor` from any directory to check which providers Corydora can find on your machine:
+Run `doctor` before your first project setup:
 
 ```bash
 corydora doctor
 ```
 
-The output reports:
+The output tells you:
 
-- **Package manager** detected in the current directory
-- **Frameworks** identified (Next.js, Electron, etc.)
-- **tmux availability** — required for background runs
-- **Per-provider status** — whether each provider is installed, and the authentication state (e.g., `ok`, `missing`, `unauthenticated`)
+- which package manager and frameworks Corydora detects
+- whether `tmux` is available for background runs
+- which providers are installed
+- whether each provider looks ready, missing, or unknown from the current machine state
 
-A provider with `installed=true auth=ok` is ready to use. If a provider shows `auth=missing`, consult the [Provider Setup](/providers/) page for the required environment variable or binary.
+A provider that reports `installed=true auth=ready` is a good default choice. If a provider reports `missing`, use the matching setup guide in [Providers](/providers/).
 
 Example output:
 
@@ -64,12 +65,33 @@ Example output:
 Package manager: pnpm
 Frameworks: nextjs, node
 tmux available: yes
-claude-cli: installed=true auth=ok (Claude Code authenticated)
-anthropic-api: installed=true auth=ok (ANTHROPIC_API_KEY set)
+background keep-awake available: yes
+claude-cli: installed=true auth=ready (Claude Code authenticated)
+anthropic-api: installed=true auth=ready (ANTHROPIC_API_KEY set)
 openai-api: installed=false auth=missing (OPENAI_API_KEY not set)
 ```
 
-## Next Steps
+## Initialize a repository
 
-- **[Quickstart](/quickstart)** — initialize a project and run Corydora for the first time
-- **[Provider Setup](/providers/)** — configure your AI provider credentials
+From the root of the repository you want Corydora to maintain:
+
+```bash
+corydora init
+```
+
+`init` creates:
+
+- `.corydora.json` with your default provider, model, isolation mode, and runtime settings
+- `.corydora/` for run state, logs, imported agents, and generated task queues
+
+If you want a non-interactive setup:
+
+```bash
+corydora init --yes
+```
+
+## What to do next
+
+- [Quickstart](/quickstart) shows the first end-to-end run, including `--mode`, background runs, and review workflow.
+- [Configuration](/configuration) explains how to change defaults, tune worker counts, and route stages to different providers or models.
+- [CLI Reference](/cli-reference) documents every command and flag.

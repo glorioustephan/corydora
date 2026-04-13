@@ -6,7 +6,7 @@ export interface DiscoveryOptions {
   excludeDirectories: string[];
 }
 
-function isTestLikePath(filePath: string): boolean {
+export function isTestLikePath(filePath: string): boolean {
   return (
     filePath.includes('/__tests__/') ||
     filePath.includes('/tests/') ||
@@ -19,7 +19,7 @@ function isTestLikePath(filePath: string): boolean {
   );
 }
 
-function filePriority(filePath: string): number {
+export function filePriority(filePath: string): number {
   if (filePath.includes('/src/') && !isTestLikePath(filePath)) {
     return 0;
   }

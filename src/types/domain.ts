@@ -1,16 +1,35 @@
-import type { BUILTIN_TASK_CATEGORIES, RUNTIME_PROVIDER_IDS, TECH_LENSES } from '../constants.js';
+import type {
+  BUILTIN_TASK_CATEGORIES,
+  CORYDORA_MODES,
+  RUNTIME_PROVIDER_IDS,
+  TECH_LENSES,
+} from '../constants.js';
 
 export type TaskCategory = (typeof BUILTIN_TASK_CATEGORIES)[number];
 export type TechLens = (typeof TECH_LENSES)[number];
 export type RuntimeProviderId = (typeof RUNTIME_PROVIDER_IDS)[number];
+export type CorydoraMode = (typeof CORYDORA_MODES)[number];
 
 export type TaskSeverity = 'low' | 'medium' | 'high' | 'critical';
 export type TaskEffort = 'small' | 'medium' | 'large';
 export type TaskRisk = 'low' | 'medium' | 'broad';
-export type TaskStatus = 'pending' | 'claimed' | 'done' | 'failed' | 'blocked';
+export type FileStatus = 'queued' | 'leased' | 'analyzed' | 'deferred' | 'manual';
+export type TaskStatus =
+  | 'queued'
+  | 'leased'
+  | 'applying'
+  | 'validating'
+  | 'done'
+  | 'deferred'
+  | 'blocked'
+  | 'manual';
 export type GitIsolationMode = 'worktree' | 'branch' | 'current-branch';
 export type RunStatus = 'idle' | 'running' | 'completed' | 'failed' | 'stopped';
-export type RunPhase = 'idle' | 'scan' | 'fix';
+export type RunPhase = 'idle' | 'analyze' | 'fix' | 'summary';
+export type ValidationStatus = 'passed' | 'failed' | 'skipped';
+export type WorkerKind = 'analyze' | 'fix';
+export type WorkerStatus = 'idle' | 'running' | 'waiting';
+export type RuntimeStageName = 'analyze' | 'fix' | 'summary';
 
 export interface CorydoraPaths {
   corydoraDir: string;
@@ -27,6 +46,23 @@ export interface RuntimeRequestSettings {
   maxRetries: number;
 }
 
+export interface RuntimeStageConfig extends Partial<RuntimeRequestSettings> {
+  provider?: RuntimeProviderId | undefined;
+  model?: string | undefined;
+  fallbackProvider?: RuntimeProviderId | undefined;
+}
+
+export interface RuntimeStagesConfig {
+  analyze: RuntimeStageConfig;
+  fix: RuntimeStageConfig;
+  summary: RuntimeStageConfig;
+}
+
+export interface ModeProfileConfig {
+  agentIds?: string[];
+  categoryBias?: TaskCategory[];
+}
+
 export interface CorydoraConfig {
   version: 1;
   git: {
@@ -38,8 +74,13 @@ export interface CorydoraConfig {
   runtime: {
     provider: RuntimeProviderId;
     model: string;
-    fallbackProvider?: RuntimeProviderId;
+    fallbackProvider?: RuntimeProviderId | undefined;
+    stages: RuntimeStagesConfig;
   } & RuntimeRequestSettings;
+  modes: {
+    default: CorydoraMode;
+    profiles: Record<CorydoraMode, ModeProfileConfig>;
+  };
   agents: {
     enabledCategories: TaskCategory[];
     selectedBuiltinAgents: string[];
@@ -59,6 +100,10 @@ export interface CorydoraConfig {
     maxRuntimeMinutes: number;
     backlogTarget: number;
     validateAfterFix: boolean;
+    maxAnalyzeWorkers: number;
+    maxFixWorkers: number;
+    maxAttempts: number;
+    leaseTtlMinutes: number;
   };
   todo: {
     trackMarkdownFiles: boolean;
@@ -75,7 +120,7 @@ export interface AgentDefinition {
   techLenses: TechLens[];
   prompt: string;
   source: 'builtin' | 'imported';
-  originalPath?: string;
+  originalPath?: string | undefined;
 }
 
 export interface ImportedAgentRecord extends AgentDefinition {
@@ -90,10 +135,29 @@ export interface ProjectFingerprint {
   topLevelDirectories: string[];
 }
 
+export interface EvidenceSpan {
+  file: string;
+  startLine: number;
+  endLine: number;
+  note: string;
+}
+
+export interface HandoffPacket {
+  taskId: string;
+  targetFiles: string[];
+  title: string;
+  rationale: string;
+  evidence: EvidenceSpan[];
+  validationHint: string;
+  confidence: number;
+  snapshotHash: string;
+}
+
 export interface ScanFinding {
   category: TaskCategory;
   title: string;
   file: string;
+  targetFiles: string[];
   rationale: string;
   validation: string;
   severity: TaskSeverity;
@@ -101,6 +165,8 @@ export interface ScanFinding {
   risk: TaskRisk;
   sourceAgent: string;
   techLenses: TechLens[];
+  evidence: EvidenceSpan[];
+  confidence: number;
 }
 
 export interface ScanResult {
@@ -122,11 +188,18 @@ export interface FixResult {
   rawText?: string;
 }
 
+export interface ValidationResult {
+  status: ValidationStatus;
+  command?: string | undefined;
+  summary: string;
+}
+
 export interface TaskRecord {
   id: string;
   category: TaskCategory;
   title: string;
   file: string;
+  targetFiles: string[];
   rationale: string;
   validation: string;
   severity: TaskSeverity;
@@ -138,12 +211,63 @@ export interface TaskRecord {
   techLenses: TechLens[];
   createdAt: string;
   updatedAt: string;
-  claimRunId?: string;
-  lastError?: string;
+  claimRunId?: string | undefined;
+  lastError?: string | undefined;
+  attemptCount: number;
+  nextEligibleAt?: string | undefined;
+  leaseOwner?: string | undefined;
+  leaseExpiresAt?: string | undefined;
+  snapshotHash: string;
+  handoff: HandoffPacket;
+  validationResult?: ValidationResult | undefined;
 }
 
 export interface TaskStore {
   tasks: TaskRecord[];
+}
+
+export interface FileScoreBreakdown {
+  priority: number;
+  gitTouches: number;
+  recency: number;
+  size: number;
+  currentDiff: number;
+  deferredTaskWeight: number;
+  total: number;
+}
+
+export interface FileWindow {
+  startLine: number;
+  endLine: number;
+  reason: string;
+}
+
+export interface FileRecord {
+  id: string;
+  path: string;
+  group: string;
+  mode: CorydoraMode;
+  status: FileStatus;
+  createdAt: string;
+  updatedAt: string;
+  attemptCount: number;
+  nextEligibleAt?: string | undefined;
+  lastError?: string | undefined;
+  leaseOwner?: string | undefined;
+  leaseExpiresAt?: string | undefined;
+  snapshotHash: string;
+  lineCount: number;
+  estimatedTokens: number;
+  changedInWorktree: boolean;
+  gitTouchCount: number;
+  lastTouchedAt?: string | undefined;
+  score: FileScoreBreakdown;
+  analysisStrategy: 'full' | 'windowed' | 'tooling';
+  windows: FileWindow[];
+}
+
+export interface FileStore {
+  files: FileRecord[];
 }
 
 export interface SchedulerState {
@@ -157,7 +281,27 @@ export interface BackgroundSession {
   sessionName: string;
   launchCommand: string;
   launchedAt: string;
-  keepAwake?: boolean;
+  keepAwake?: boolean | undefined;
+}
+
+export interface WorkerState {
+  id: string;
+  kind: WorkerKind;
+  status: WorkerStatus;
+  targetId?: string | undefined;
+  startedAt?: string | undefined;
+  details?: string | undefined;
+}
+
+export interface RunEvent {
+  runId: string;
+  at: string;
+  type: string;
+  stage: RunPhase | RuntimeStageName;
+  message: string;
+  itemId?: string | undefined;
+  itemPath?: string | undefined;
+  metadata?: Record<string, string | number | boolean | null> | undefined;
 }
 
 export interface RunState {
@@ -169,20 +313,24 @@ export interface RunState {
   provider: RuntimeProviderId;
   model: string;
   isolationMode: GitIsolationMode;
-  branchName?: string;
-  baseBranch?: string;
-  worktreePath?: string;
+  effectiveIsolationMode: GitIsolationMode;
+  mode: CorydoraMode;
+  selectedAgentIds: string[];
+  branchName?: string | undefined;
+  baseBranch?: string | undefined;
+  worktreePath?: string | undefined;
   startedAt: string;
   updatedAt: string;
-  finishedAt?: string;
+  finishedAt?: string | undefined;
   stopRequested: boolean;
-  selectedFiles: string[];
   claimedTaskIds: string[];
   completedTaskIds: string[];
   consecutiveFailures: number;
   completedFixCount: number;
-  scheduler: SchedulerState;
-  background?: BackgroundSession;
+  filesPath: string;
+  workers: WorkerState[];
+  summary?: string | undefined;
+  background?: BackgroundSession | undefined;
 }
 
 export interface ProviderAuthStatus {
@@ -210,7 +358,7 @@ export interface RuntimeExecutionContext {
   workingDirectory: string;
   model: string;
   prompt: string;
-  schema?: string;
+  schema?: string | undefined;
   dryRun: boolean;
   settings: RuntimeRequestSettings;
 }

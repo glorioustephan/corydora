@@ -1,6 +1,16 @@
 export const CONFIG_FILE_NAME = '.corydora.json';
 export const CORYDORA_DIR_NAME = '.corydora';
 
+export const CORYDORA_MODES = [
+  'auto',
+  'churn',
+  'clean',
+  'refactor',
+  'performance',
+  'linting',
+  'documentation',
+] as const;
+
 export const BUILTIN_TASK_CATEGORIES = [
   'bugs',
   'performance',
