@@ -2,6 +2,17 @@
 
 All notable changes to Corydora are documented in this file.
 
+## [1.0.0](https://github.com/glorioustephan/corydora/compare/corydora-v0.4.0...corydora-v1.0.0) (2026-04-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* corydora status --json changed shape and status vocabulary.
+
+### Features
+
+* adding modes and introducing a background daemon with vNext ([#14](https://github.com/glorioustephan/corydora/issues/14)) ([66db5fc](https://github.com/glorioustephan/corydora/commit/66db5fc94805e68e6a364bbc4440d6d0d96aa540))
+
 ## [0.4.0](https://github.com/glorioustephan/corydora/compare/corydora-v0.3.4...corydora-v0.4.0) (2026-03-31)
 
 ### Features
