@@ -5,25 +5,17 @@ import type { Ui } from '../ui/output.js';
 const {
   loadRequiredConfig,
   listAgents,
-  loadRunState,
-  loadTaskStore,
-  discoverCandidateFiles,
-  restoreSchedulerState,
-  selectScanBatch,
   supportsTmux,
   launchBackgroundRun,
   runCorydoraSession,
+  detectProjectFingerprint,
 } = vi.hoisted(() => ({
   loadRequiredConfig: vi.fn(),
   listAgents: vi.fn(),
-  loadRunState: vi.fn(),
-  loadTaskStore: vi.fn(),
-  discoverCandidateFiles: vi.fn(),
-  restoreSchedulerState: vi.fn(),
-  selectScanBatch: vi.fn(),
   supportsTmux: vi.fn(),
   launchBackgroundRun: vi.fn(),
   runCorydoraSession: vi.fn(),
+  detectProjectFingerprint: vi.fn(),
 }));
 
 vi.mock('./helpers.js', () => ({
@@ -34,18 +26,8 @@ vi.mock('../agents/catalog.js', () => ({
   listAgents,
 }));
 
-vi.mock('../queue/state.js', () => ({
-  loadRunState,
-  loadTaskStore,
-}));
-
-vi.mock('../filesystem/discovery.js', () => ({
-  discoverCandidateFiles,
-}));
-
-vi.mock('../runtime/scheduler.js', () => ({
-  restoreSchedulerState,
-  selectScanBatch,
+vi.mock('../filesystem/project.js', () => ({
+  detectProjectFingerprint,
 }));
 
 vi.mock('../runtime/tmux.js', () => ({
@@ -72,22 +54,22 @@ function createUi(): Ui {
 describe('runRunCommand', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    loadTaskStore.mockResolvedValue({ tasks: [] });
-    loadRunState.mockResolvedValue(null);
-    discoverCandidateFiles.mockReturnValue([]);
-    restoreSchedulerState.mockReturnValue({
-      groupOrder: [],
-      groupCursors: {},
-      completedFiles: [],
-      failedFiles: [],
+    detectProjectFingerprint.mockReturnValue({
+      packageManager: 'pnpm',
+      frameworks: ['node'],
+      techLenses: ['typescript', 'refactoring', 'node-cli'],
+      packageCount: 1,
+      topLevelDirectories: ['src'],
     });
-    selectScanBatch.mockReturnValue([]);
     listAgents.mockResolvedValue([]);
     runCorydoraSession.mockResolvedValue({
       runId: 'run-123',
       status: 'completed',
       provider: 'fake',
       isolationMode: 'current-branch',
+      effectiveIsolationMode: 'current-branch',
+      mode: 'auto',
+      selectedAgentIds: [],
     });
   });
 
@@ -112,7 +94,14 @@ describe('runRunCommand', () => {
 
     expect(launchBackgroundRun).toHaveBeenCalledWith(
       expect.stringMatching(/^corydora-project-/),
-      ['run', '--foreground', '--session-name', expect.stringMatching(/^corydora-project-/)],
+      [
+        'run',
+        '--foreground',
+        '--session-name',
+        expect.stringMatching(/^corydora-project-/),
+        '--mode',
+        'auto',
+      ],
       '/tmp/project',
       true,
     );

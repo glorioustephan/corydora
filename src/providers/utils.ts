@@ -61,12 +61,24 @@ const scanFindingSchema = z.object({
     .transform((value) => normalizeTaskCategory(value)),
   title: z.string().min(1),
   file: z.string().min(1),
+  targetFiles: z.array(z.string().min(1)).default([]),
   rationale: z.string().min(1),
   validation: z.string().min(1),
   severity: z.enum(['low', 'medium', 'high', 'critical']),
   effort: z.enum(['small', 'medium', 'large']),
   risk: z.enum(['low', 'medium', 'broad']),
   sourceAgent: z.string().min(1),
+  evidence: z
+    .array(
+      z.object({
+        file: z.string().min(1),
+        startLine: z.number().int().positive(),
+        endLine: z.number().int().positive(),
+        note: z.string().min(1),
+      }),
+    )
+    .default([]),
+  confidence: z.number().min(0).max(1).default(0.5),
   techLenses: z
     .array(
       z.enum([
@@ -151,6 +163,21 @@ export function normalizeScanResult(raw: string): ScanResult {
   const parsed = scanPayloadSchema.parse(JSON.parse(payload));
   return {
     ...parsed,
+    tasks: parsed.tasks.map((task) => ({
+      ...task,
+      targetFiles: task.targetFiles.length > 0 ? task.targetFiles.slice(0, 3) : [task.file],
+      evidence:
+        task.evidence.length > 0
+          ? task.evidence
+          : [
+              {
+                file: task.file,
+                startLine: 1,
+                endLine: 1,
+                note: 'Provider did not emit evidence.',
+              },
+            ],
+    })),
     rawText: raw,
   };
 }

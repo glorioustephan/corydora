@@ -34,22 +34,24 @@ export function prepareIsolationContext(options: {
   config: CorydoraConfig;
   runId: string;
   dryRun: boolean;
+  isolationMode?: GitIsolationMode;
 }): IsolationContext {
   const baseBranch = currentBranch(options.projectRoot);
   const branchName = `${options.config.git.branchPrefix}/${new Date().toISOString().slice(0, 10)}-${options.runId}`;
+  const isolationMode = options.isolationMode ?? options.config.git.isolationMode;
 
-  if (options.config.git.isolationMode === 'current-branch' || options.dryRun) {
+  if (isolationMode === 'current-branch' || options.dryRun) {
     return {
-      mode: options.config.git.isolationMode,
+      mode: isolationMode,
       workRoot: options.projectRoot,
       baseBranch,
-      ...(options.config.git.isolationMode !== 'current-branch' ? { branchName } : {}),
+      ...(isolationMode !== 'current-branch' ? { branchName } : {}),
     };
   }
 
   ensureCleanWorktree(options.projectRoot);
 
-  if (options.config.git.isolationMode === 'branch') {
+  if (isolationMode === 'branch') {
     execFileSync('git', ['checkout', '-B', branchName, baseBranch], {
       cwd: options.projectRoot,
       stdio: 'ignore',

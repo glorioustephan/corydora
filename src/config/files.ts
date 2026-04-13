@@ -84,6 +84,16 @@ export async function ensureCorydoraStructure(
   if (!existsSync(emptyTasksPath)) {
     await writeFile(emptyTasksPath, `${JSON.stringify({ tasks: [] }, null, 2)}\n`, 'utf8');
   }
+
+  const emptyFilesPath = resolve(projectRoot, config.paths.stateDir, 'files.json');
+  if (!existsSync(emptyFilesPath)) {
+    await writeFile(emptyFilesPath, `${JSON.stringify({ files: [] }, null, 2)}\n`, 'utf8');
+  }
+
+  const eventsPath = resolve(projectRoot, config.paths.stateDir, 'events.ndjson');
+  if (!existsSync(eventsPath)) {
+    await writeFile(eventsPath, '', 'utf8');
+  }
 }
 
 export function resolveStatePath(
