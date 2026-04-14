@@ -167,6 +167,73 @@ This asks Corydora to finish its current checkpoint, save state, and stop the tm
 
 When the run completes, review the isolated branch or worktree the CLI reports. Corydora commits fixes incrementally so you can inspect the diff or cherry-pick commits the same way you review human changes.
 
+### The next-morning flow
+
+1. Check the final run metadata:
+
+```bash
+corydora status
+```
+
+Look for:
+
+- `effectiveIsolationMode`
+- `branchName`
+- `worktreePath` when the run used a dedicated worktree
+
+In the examples below, `<base-branch>` means the branch you started the run from, such as `main`.
+
+2. Review the generated changes.
+
+If the run used `worktree`, open that checkout directly:
+
+```bash
+cd <worktreePath>
+git status
+git log --oneline --decorate --max-count=10
+git diff <base-branch>...<branchName>
+```
+
+If the run used `branch`, stay in your main checkout and inspect the generated branch:
+
+```bash
+git status
+git log --oneline --decorate <branchName> --max-count=10
+git diff <base-branch>...<branchName>
+```
+
+3. Bring the changes back the way you normally review code.
+
+Merge the whole branch:
+
+```bash
+git switch <base-branch>
+git merge --ff-only <branchName>
+```
+
+Or cherry-pick only the commits you want:
+
+```bash
+git switch <base-branch>
+git cherry-pick <commit-sha>
+```
+
+4. Clean up after review.
+
+If the run used `worktree`, remove the extra checkout after you no longer need it:
+
+```bash
+git worktree remove <worktreePath>
+```
+
+Then delete the generated branch if it has been merged or you no longer want to keep it:
+
+```bash
+git branch -d <branchName>
+```
+
+If Corydora fell back to `branch` isolation for the run, there is no separate worktree to remove.
+
 Useful files under `.corydora/state/`:
 
 | File             | What it is for                                 |

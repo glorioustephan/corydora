@@ -9,9 +9,9 @@ Corydora is designed to keep control in your hands. It runs locally, writes to a
 
 ## Secrets Management
 
-`.corydora.json` does not store secrets. Put API keys and similar credentials in `.corydora/.env.local`, which Corydora creates during `init` and keeps out of git by default.
+`.corydora.json` does not store secrets. Put API keys and similar credentials in `.corydora/.env.local`, which Corydora creates during `init`.
 
-Use that file for provider credentials. Do not commit it.
+Use that file for provider credentials. Do not commit it. Corydora can append the recommended ignore entries to `.gitignore` during interactive `init`, or it will show you the entries to add manually.
 
 If it does get staged accidentally:
 

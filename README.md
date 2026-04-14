@@ -226,7 +226,7 @@ calls `npm publish`.
 ## Notes
 
 - Secrets never belong in `.corydora.json`.
-- `.corydora/.env.local` is ignored by default.
+- Add `.corydora/.env.local` to `.gitignore`, or let interactive `corydora init` append Corydora's recommended ignore block.
 - Markdown queue files are projections of machine state in `.corydora/state/`.
 - The root `CHANGELOG.md` is the canonical release history and is maintained by release-please.
 - The npm publish workflow assumes GitHub-hosted runners, which is also what npm trusted publishing

@@ -322,7 +322,7 @@ Overrides the locations of Corydora's internal directories and files. Most proje
 | `agentsDir`   | `string` | `.corydora/agents`     | Imported agent metadata                                |
 | `envFile`     | `string` | `.corydora/.env.local` | Local environment secrets loaded before provider calls |
 
-`.corydora/.env.local` is excluded from git by default. Store provider API keys there, not in `.corydora.json`.
+Store provider API keys in `.corydora/.env.local`, not in `.corydora.json`. Corydora can suggest or append the recommended `.gitignore` entries during `init`, but it does not silently rewrite your `.gitignore`.
 
 ---
 

@@ -1,6 +1,4 @@
-import { existsSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { resolve } from 'node:path';
 
 export function runGit(args: string[], cwd: string): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
@@ -38,32 +36,6 @@ export function listChangedFiles(cwd: string): string[] {
   }
 }
 
-function formatTouchedFiles(cwd: string, files: string[]): void {
-  if (files.length === 0 || !existsSync(resolve(cwd, 'package.json'))) {
-    return;
-  }
-
-  const result = spawnSync(
-    'pnpm',
-    ['exec', 'prettier', '--ignore-unknown', '--write', '--', ...files],
-    {
-      cwd,
-      encoding: 'utf8',
-    },
-  );
-
-  if (result.error) {
-    return;
-  }
-
-  if (result.status !== 0) {
-    const details = [result.stdout?.trim(), result.stderr?.trim()].filter(Boolean).join('\n');
-    throw new Error(
-      `Prettier formatting failed for touched files.${details.length > 0 ? ` ${details}` : ''}`,
-    );
-  }
-}
-
 export function commitTaskChanges(
   cwd: string,
   message: string,
@@ -74,8 +46,6 @@ export function commitTaskChanges(
   if (uniqueFiles.length === 0) {
     return false;
   }
-
-  formatTouchedFiles(cwd, uniqueFiles);
 
   execFileSync('git', ['add', '-A', '--', ...uniqueFiles], { cwd, stdio: 'ignore' });
   const result = spawnSync('git', ['diff', '--cached', '--quiet'], { cwd, stdio: 'ignore' });

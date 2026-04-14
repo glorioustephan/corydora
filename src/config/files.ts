@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { CONFIG_FILE_NAME, CORYDORA_DIR_NAME, TASK_CATEGORY_FILES } from '../constants.js';
 import { parseCorydoraConfig } from './schema.js';
 import type { CorydoraConfig, TaskCategory } from '../types/domain.js';
@@ -47,8 +48,22 @@ export async function loadConfig(
 
 export async function saveConfig(projectRoot: string, config: CorydoraConfig): Promise<string> {
   const configPath = resolve(projectRoot, CONFIG_FILE_NAME);
+  const nextContent = `${JSON.stringify(config, null, 2)}\n`;
+
+  if (existsSync(configPath)) {
+    try {
+      const existing = await readFile(configPath, 'utf8');
+      const parsed = JSON.parse(existing) as CorydoraConfig;
+      if (isDeepStrictEqual(parsed, config)) {
+        return configPath;
+      }
+    } catch {
+      // Fall through and rewrite malformed or unreadable config files.
+    }
+  }
+
   await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  await writeFile(configPath, nextContent, 'utf8');
   return configPath;
 }
 
