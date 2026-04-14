@@ -95,7 +95,7 @@ jobs:
               if (branch) {
                 process.stdout.write(branch);
               }
-            NODE
+          NODE
           }
 
           BRANCH_NAME=$(extract_branch)
@@ -139,7 +139,7 @@ jobs:
               } catch {
                 process.exit(0);
               }
-            NODE
+          NODE
             )
           fi
 
