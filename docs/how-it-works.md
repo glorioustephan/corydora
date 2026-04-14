@@ -40,6 +40,13 @@ Corydora focuses on smaller, more reviewable changes by default. Broader changes
 
 Each successful fix is committed locally so you can review it later.
 
+When the run uses `worktree` isolation, Corydora creates both:
+
+- a generated branch in the repository
+- a separate worktree checkout for that branch
+
+That means the next-morning handoff is still ordinary git work: review the branch, merge it, or cherry-pick the commits you want. Corydora does not currently move those commits back into your main checkout automatically.
+
 ## Validation and retries
 
 If `execution.validateAfterFix` is enabled, Corydora validates after each fix:

@@ -38,10 +38,10 @@ Run `corydora doctor` at any time to see which providers are installed and authe
 
 ## Secrets and environment variables
 
-Store project-local secrets in `.corydora/.env.local`. This file is git-ignored by default and is loaded automatically when Corydora starts. Never put API keys or credentials in `.corydora.json` — that file is meant to be committed.
+Store project-local secrets in `.corydora/.env.local`. Add that file to `.gitignore`, or let interactive `corydora init` append Corydora's recommended ignore block for you. Corydora loads the file automatically when it starts. Never put API keys or credentials in `.corydora.json` — that file is meant to be committed.
 
 ```
 .corydora/
-  .env.local      # secrets — git-ignored
+  .env.local      # secrets — add to .gitignore
   .corydora.json  # config — commit this
 ```

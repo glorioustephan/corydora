@@ -29,7 +29,9 @@ The top-level command is context-aware:
 
 Creates `.corydora.json` and the `.corydora/` working directory for the current repository.
 
-Use `--yes` to accept detected defaults without prompts.
+Interactive `init` prompts for runtime settings, category scope, and whether Corydora should append a dedicated block to `.gitignore`.
+
+Use `--yes` to accept detected defaults without prompts. In non-interactive mode, Corydora does not modify `.gitignore`; it reports the recommended entries instead.
 
 **Flags**
 
@@ -53,10 +55,15 @@ corydora init --yes --json
   "provider": "claude-cli",
   "model": "sonnet",
   "isolationMode": "worktree",
+  "enabledCategories": ["bugs", "performance", "tests", "todo"],
   "fingerprint": {
     "packageManager": "pnpm",
     "frameworks": ["nextjs"],
     "techLenses": ["typescript", "react", "nextjs"]
+  },
+  "gitignore": {
+    "modified": false,
+    "missingEntries": [".corydora/logs/", ".corydora/.env.local"]
   }
 }
 ```
