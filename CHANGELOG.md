@@ -2,6 +2,13 @@
 
 All notable changes to Corydora are documented in this file.
 
+## [1.0.2](https://github.com/glorioustephan/corydora/compare/corydora-v1.0.1...corydora-v1.0.2) (2026-04-14)
+
+
+### Bug Fixes
+
+* **publish.yml:** the workflow ran pnpm install --frozen-lockfile before any actions/checkout ([#19](https://github.com/glorioustephan/corydora/issues/19)) ([dd6b461](https://github.com/glorioustephan/corydora/commit/dd6b461c2d5609b291168cf41e0657bb6ff54898))
+
 ## [1.0.1](https://github.com/glorioustephan/corydora/compare/corydora-v1.0.0...corydora-v1.0.1) (2026-04-14)
 
 
