@@ -29,6 +29,12 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      - name: Checkout repository for release PR formatting
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - name: Setup pnpm
         if: ${{ steps.release.outputs.release_created == 'true' || steps.release.outputs.prs_created == 'true' }}
         uses: pnpm/action-setup@v4
@@ -43,7 +49,7 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
-        if: ${{ steps.release.outputs.release_created == 'true' || steps.release.outputs.prs_created == 'true' }}
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
         run: pnpm install --frozen-lockfile
 
       - name: Format release-please changelog branch
