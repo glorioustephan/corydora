@@ -2,6 +2,13 @@
 
 All notable changes to Corydora are documented in this file.
 
+## [1.0.1](https://github.com/glorioustephan/corydora/compare/corydora-v1.0.0...corydora-v1.0.1) (2026-04-14)
+
+
+### Bug Fixes
+
+* release PR [#17](https://github.com/glorioustephan/corydora/issues/17) changes ([2ded546](https://github.com/glorioustephan/corydora/commit/2ded546cb50365c49dff4e67ceb65396b6f7371d))
+
 ## [1.0.0](https://github.com/glorioustephan/corydora/compare/corydora-v0.4.0...corydora-v1.0.0) (2026-04-13)
 
 
